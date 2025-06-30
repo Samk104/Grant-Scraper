@@ -1,0 +1,23 @@
+sites:
+  - name: fresharts
+    url: https://fresharts.org/artist-opportunity-board-2/
+    iframe: true
+    scroll: true
+    scraper_class: FreshArtsScraper  
+    tabs:
+      - label: "Grant"
+      - label: "Call for Entry"
+    opportunity_selector: "ul.opportunity-grid > li"
+    card_class: "opportunity-item"
+    title_class: "opportunity-card-title"
+    description_class: "description-text"
+    tags_selector: ".small-text.grey-text"
+
+  - name: creativecapital
+    url: https://creative-capital.org/category/artist-opportunities/
+    scroll: true
+    scraper_class: CreativeCapitalScraper
+    article_link_selector: .journal-single h2 a
+    content_within: .long-read
+    p_blocks_as_opportunity: true
+  

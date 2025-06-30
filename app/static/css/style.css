@@ -1,0 +1,150 @@
+
+        body, html {
+            margin: 0;
+            padding: 0;
+        }
+
+        .section {
+            height: 100vh;
+            width: 33.33%;
+            float: left;
+            text-align: center;
+            padding: 0px;
+            box-sizing: border-box;
+            transform: translateY(-100%);
+            transition: transform 0s;
+            visibility: hidden;
+        }
+        
+        .section.visible {
+            transform: translateY(0);
+            visibility: visible;
+        }
+
+        #section1 {
+            animation: slideIn 0s forwards;
+        }
+        @keyframes slideIn {
+            from { transform: translateY(-100%); visibility: hidden; }
+            to { transform: translateY(0); visibility: visible; }
+        }
+
+        #section3 {
+            background-image: url('../recipe.jpg');
+            background-size: cover;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+            display: flex;
+            flex-direction: column;
+            /* #588bde */
+        }
+        #section2 {
+            background-image: url('../store.jpg');
+            background-size:cover;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+            display: flex;
+            flex-direction: column;
+           
+        }
+        .background {
+            height: 100vh;
+            width: auto;
+            float: left;
+            text-align: center;
+            padding: 0px;
+            position: absolute;
+            z-index: 1;
+        }
+        
+        .background img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: blur(2px);
+        }
+
+        
+        .content {
+            position: relative;
+            z-index: 2;
+            color: bisque;
+            text-align: center;
+            font-size: 1.5em;
+        }
+        #inst{
+            color: rgb(240, 215, 112);
+            text-align: justify;
+            font-size: 20px;
+            padding: 10px;
+        }
+        ul{
+            list-style: none;
+            align-items: center;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+        .tick {
+            color: white;
+            font-size: 100px;
+            font-family: 'Courier New', Courier, monospace;
+            color: #45a049;
+        }
+
+        input[type="text"] {
+            border: 3px solid green;
+            border-radius: 10px;
+            text-align: center;
+            width: 50%;  
+            height: 30px;  
+            font-size: 16px;  
+            padding: 10px;
+        }
+
+        input[type="submit"] {
+            width: 30%; 
+            height: 40px;  
+            font-size: 16px;  
+            background-color: #4CAF50;  
+            color: white; 
+            border: none;
+            border-radius: 5px;  
+            cursor: pointer;
+            border-radius: 10px;
+        }
+
+        button {
+            width: 30%; 
+            height: 40px;  
+            font-size: 16px;  
+            background-color: #4CAF50; 
+            color: white;  
+            border: none;
+            border-radius: 5px;  
+            cursor: pointer;
+            border-radius: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049; 
+        }
+
+        #animated-paragraph {
+            text-align: left;
+            margin-left: 10%;
+            margin-top: 20px;
+            font-size: 1em;
+            line-height: 1em;
+            max-width: 80%;
+        }
+        
+        #animated-paragraph span {
+            display: block;
+            margin-bottom: 10px;
+        }
+        

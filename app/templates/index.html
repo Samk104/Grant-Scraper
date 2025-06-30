@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="{{url_for('static',filename='css/style.css')}}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.11"></script>
+    <script src="/static/index.js" defer></script>
+    <title>MT Web Crawler</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <div id="section1" class="section visible">
+        <div class="background">
+            <img src="../static/web.jpg" alt="web">
+        </div>
+        <div class="content">
+            <h2 id="animated-heading">Meal In Budget</h2>
+            <h4>A Multi-Threaded Web Crawler application</h4>
+            <p id="animated-paragraph">
+                <span id="paragraph-line1"></span><br>
+                <span id="paragraph-line2"></span><br>
+                <span id="paragraph-line3"></span><br>
+                <span id="paragraph-line4"></span>
+            </p>
+        </div>
+    </div>
+
+    <form id="recipe-form" method="post">
+        <div id="section2" class="section">
+            <input type="text" id="zip" name="zipcode" placeholder="Enter your zip code">
+            <br>
+            <button type="button" id="zip-submit" onclick="submitZip()">Submit ZIP</button>
+            <div id="tick2" class="hidden tick">✔</div>
+        </div>
+    
+        <div id="section3" class="section">
+            <input type="text" id="recipe" name="dish" placeholder="Enter a recipe">
+            <br>
+            <button type="button" id="submit-recipe" onclick="submitRecipe()">Start Crawl</button>
+            <div id="tick1" class="hidden tick">✔</div>
+        </div>
+    </form>
+    
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let completed = false;
+
+            new Typed('#paragraph-line1', {
+                strings: ['How to use the application?'],
+                typeSpeed: 50,
+                startDelay: 0,
+                smartBackspace: false,
+                showCursor: false,
+                loop: false,
+                onComplete: function() {
+                    new Typed('#paragraph-line2', {
+                        strings: ['Step 1: Zip code.'],
+                        typeSpeed: 50,
+                        startDelay: 500,
+                        smartBackspace: false,
+                        showCursor: false,
+                        loop: false,
+                        onComplete: function() {
+                            new Typed('#paragraph-line3', {
+                                strings: ['Step 2: Your favorite recipe.'],
+                                typeSpeed: 50,
+                                startDelay: 500,
+                                smartBackspace: false,
+                                showCursor: false,
+                                loop: false,
+                                onComplete: function() {
+                                    new Typed('#paragraph-line4', {
+                                        strings: ['Step 3: Get ingredients and best prices!'],
+                                        typeSpeed: 50,
+                                        startDelay: 500,
+                                        smartBackspace: false,
+                                        showCursor: false,
+                                        loop: false,
+                                        onComplete: function() {
+                                            if (!completed) {
+                                                document.getElementById('section2').classList.add('visible');
+                                                completed = true;
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
