@@ -21,3 +21,7 @@ sites:
     content_within: .long-read
     p_blocks_as_opportunity: true
   
+  - name: surdna
+    url: https://surdna.org/grants-database/
+    scroll: true
+    scraper_class: SurdnaScraper
