@@ -1,7 +1,7 @@
 import logging
 import time
-from scrapers.base_scraper import BaseScraper
-from utils.driver_pool import get_driver_pool
+from app.scrapers.base_scraper import BaseScraper
+from app.utils.driver_pool import get_driver_pool
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC

@@ -3,5 +3,5 @@ from .models import Opportunity
 
 
 def init_db():
-    import db.models  
+    import app.db.models  
     Base.metadata.create_all(bind=engine)

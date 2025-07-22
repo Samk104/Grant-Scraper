@@ -24,7 +24,6 @@ class CreativeCapitalScraper(BaseScraper):
                 EC.presence_of_element_located((By.ID, "filter-desktop"))
             )
 
-            # 🧠 Determine layout
             try:
                 driver.find_element(By.ID, "desktop-grant")
                 checkbox_ids = ["desktop-grant", "desktop-texas"]
@@ -33,7 +32,6 @@ class CreativeCapitalScraper(BaseScraper):
                 checkbox_ids = ["mob-grant", "mob-texas"]
                 logger.info("📱 Detected mobile layout - using mobile checkboxes")
 
-            # 🔧 Expand accordions if using desktop layout
             if checkbox_ids[0].startswith("desktop"):
                 accordion_ids = ["#collapseOne2", "#collapseTwo2"]
                 for acc_id in accordion_ids:
@@ -47,11 +45,11 @@ class CreativeCapitalScraper(BaseScraper):
                             time.sleep(0.5)
                             logger.info(f"✅ Expanded accordion: {acc_id}")
                     except Exception as e:
-                        logger.warning(f"⚠️ Failed to expand accordion '{acc_id}': {e}")
+                        logger.warning(f"Failed to expand accordion '{acc_id}': {e}")
 
             for checkbox_id in checkbox_ids:
                 try:
-                    logger.info(f"🕓 Waiting for checkbox '{checkbox_id}' to be clickable...")
+                    logger.info(f"Waiting for checkbox '{checkbox_id}' to be clickable...")
                     checkbox = WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.ID, checkbox_id))
                     )
@@ -62,23 +60,23 @@ class CreativeCapitalScraper(BaseScraper):
 
                     if not checkbox.is_selected():
                         driver.execute_script("arguments[0].click();", checkbox)
-                        logger.info(f"✅ Clicked checkbox: {checkbox_id}")
+                        logger.info(f"Clicked checkbox: {checkbox_id}")
                     else:
-                        logger.info(f"ℹ️ Checkbox '{checkbox_id}' already selected, skipping click")
+                        logger.info(f"Checkbox '{checkbox_id}' already selected, skipping click")
                 except Exception as e:
-                    logger.warning(f"⚠️ Could not click checkbox '{checkbox_id}': {e}")
+                    logger.warning(f"Could not click checkbox '{checkbox_id}': {e}")
 
 
-            logger.info("🔄 Filters applied, waiting for page to load...")
+            logger.info("Filters applied, waiting for page to load...")
             time.sleep(2)
 
-            logger.info("🔍 Starting to scrape opportunities")
+            logger.info("Starting to scrape opportunities")
             while True:
                 WebDriverWait(driver, 10).until(
                     EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.item"))
                 )
                 items = driver.find_elements(By.CSS_SELECTOR, "a.item")
-                logger.info(f"🧲 Found {len(items)} opportunities on current page")
+                logger.info(f"Found {len(items)} opportunities on current page")
 
                 for item in items:
                     try:
@@ -98,7 +96,6 @@ class CreativeCapitalScraper(BaseScraper):
                     except Exception as e:
                         logger.warning(f"⚠️ Error parsing opportunity: {e}")
 
-                # ➡️ Go to next page if available
                 try:
                     next_btn = driver.find_element(By.CSS_SELECTOR, ".pagination-btn.next")
                     next_page = next_btn.get_attribute("data-page")
@@ -107,11 +104,11 @@ class CreativeCapitalScraper(BaseScraper):
                     driver.execute_script("arguments[0].click();", next_btn)
                     time.sleep(2)
                 except Exception:
-                    logger.info("ℹ️ No pagination or next page found.")
+                    logger.info("No pagination or next page found.")
                     break
 
         finally:
             get_driver_pool().release_driver(driver)
 
-        logger.info(f"🌟 Total scraped: {len(all_opportunities)}")
+        logger.info(f"Creative Capital: Total scraped: {len(all_opportunities)}")
         return all_opportunities

@@ -8,9 +8,9 @@ import importlib
 from datetime import datetime, timezone
 import json
 
-from utils.driver_pool import check_driver_pool_integrity, init_driver_pool, get_driver_pool
-from db import init_db, SessionLocal
-from db.save_opportunities import save_opportunities
+from app.utils.driver_pool import check_driver_pool_integrity, init_driver_pool, get_driver_pool
+from app.db import init_db, SessionLocal
+from app.db.save_opportunities import save_opportunities
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logging_config import setup_logging
@@ -43,16 +43,16 @@ def write_backup(site_name: str, data: list[dict]):
 
 def get_scraper_instance(class_name: str, config: dict):
     try:
-        module = importlib.import_module(f"scrapers.{class_name.lower()}")
+        module = importlib.import_module(f"app.scrapers.{class_name.lower()}")
         scraper_class = getattr(module, class_name)
         return scraper_class(config)
     except (ModuleNotFoundError, AttributeError) as e:
-        logger.warning(f"⚠️ Could not find scraper '{class_name}', falling back to GenericOpportunityScraper: {e}")
+        logger.warning(f"Could not find scraper '{class_name}', falling back to GenericOpportunityScraper: {e}")
         from app.scrapers.freshartsscraper import GenericOpportunityScraper
         return GenericOpportunityScraper(config)
 
 def scrape_site(site_name: str, site_config: dict):
-    logger.info(f"🌐 Thread started for site: {site_name}")
+    logger.info(f"Thread started for site: {site_name}")
     with SessionLocal() as db:
         for attempt in range(1, MAX_RETRIES + 1):
             try:

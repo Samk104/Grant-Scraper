@@ -1,0 +1,8 @@
+FROM ollama/ollama:latest
+
+RUN apt-get update && apt-get install -y curl
+
+COPY ollama-entrypoint.sh /app/ollama-entrypoint.sh
+RUN chmod +x /app/ollama-entrypoint.sh
+
+ENTRYPOINT ["/bin/bash", "/app/ollama-entrypoint.sh"]

@@ -4,6 +4,7 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
 # Set work directory
 WORKDIR /app
@@ -16,4 +17,5 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
 
 # Default command
-CMD ["python", "app/main.py"]
+CMD ["python", "-m", "app.main"]
+

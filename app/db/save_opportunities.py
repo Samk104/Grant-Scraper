@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from db.models import Opportunity
-from db.deduplication import compute_opportunity_hash
+from app.db.models import Opportunity
+from app.db.deduplication import compute_opportunity_hash
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,8 @@ def save_opportunities(opportunities: list[dict], db: Session, source: str) -> i
             email=opp.get("email") or "Not Available",
             source=source,
             scraped_at=datetime.now(timezone.utc).isoformat(),
-            is_relevant=opp.get("is_relevant", None)
+            is_relevant=None,
+            is_viewed=False
         )
 
         try:

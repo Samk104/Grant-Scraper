@@ -35,6 +35,23 @@ services:
     platform: linux/amd64
     ports:
       - "6379:6379"
+  
+  llm:
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+    container_name: ollama_llm
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    depends_on:
+      db:
+        condition: service_started
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434  
+
+    
 
   selenium-hub:
     image: seleniarm/hub:latest
@@ -63,6 +80,8 @@ services:
       - SE_VNC_ENABLED=true
     ports:
       - "7900:7900"
+  
 
 volumes:
   pgdata:
+  ollama_models:
