@@ -12,7 +12,7 @@ class SurdnaScraper(BaseScraper):
     def scrape(self):
         driver = get_driver_pool().get_driver()
         if driver is None:
-            logger.error("Could not obtain a webdriver instance.")
+            logger.error("Surdna: Could not obtain a webdriver instance.")
             return []
 
         all_opportunities = []
@@ -25,7 +25,7 @@ class SurdnaScraper(BaseScraper):
                     url = config['url']
                 else:
                     url = f"{config['url'].rstrip('/')}/page/{page}/"
-                logger.info(f"Loading Surdna grants page {page} -> {url}")
+                logger.info(f"Surdna: Loading Surdna grants page {page} -> {url}")
                 driver.get(url)
 
                 try:
@@ -33,11 +33,11 @@ class SurdnaScraper(BaseScraper):
                         EC.presence_of_element_located((By.CSS_SELECTOR, "table tbody tr"))
                     )
                 except Exception as e:
-                    logger.warning(f"No table rows found on page {page}: {e}")
+                    logger.warning(f"Surdna: No table rows found on page {page}: {e}")
                     break
 
                 rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
-                logger.info(f"Found {len(rows)} rows on page {page}")
+                logger.info(f"Surdna: Found {len(rows)} rows on page {page}")
 
                 if not rows:
                     break
@@ -65,7 +65,7 @@ class SurdnaScraper(BaseScraper):
                         else:
                             title = org_col.text.strip().split("\n")[0] or "No title found"
                             link_url = "No URL found"
-                            logger.warning(f"Missing <a> tag in row {i} on page {page}. Raw org cell: '{org_col.text.strip()}'")
+                            logger.warning(f"Surdna: Missing <a> tag in row {i} on page {page}. Raw org cell: '{org_col.text.strip()}'")
 
                         description_elem = org_col.find_elements(By.CSS_SELECTOR, ".project-summary p")
                         description = description_elem[0].text.strip() if description_elem else "No description provided"
@@ -81,7 +81,7 @@ class SurdnaScraper(BaseScraper):
                         }
                         all_opportunities.append(opp)
                     except Exception as e:
-                        logger.warning(f"Failed to parse row {i} on page {page}: {e}")
+                        logger.warning(f"Surdna: Failed to parse row {i} on page {page}: {e}")
 
                 try:
                     next_btn = driver.find_element(By.CSS_SELECTOR, "a.next.page-numbers")
@@ -89,14 +89,14 @@ class SurdnaScraper(BaseScraper):
                         page += 1
                         time.sleep(1.5)
                     else:
-                        logger.info("No next button found. Done.")
+                        logger.info("Surdna: No next button found. Done.")
                         break
                 except:
-                    logger.info("No next button found. Done.")
+                    logger.info("Surdna: No next button found. Done.")
                     break
 
         finally:
             get_driver_pool().release_driver(driver)
 
-        logger.info(f"Total scraped: {len(all_opportunities)}")
+        logger.info(f"Surdna: Total scraped: {len(all_opportunities)}")
         return all_opportunities

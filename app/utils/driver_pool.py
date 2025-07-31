@@ -30,7 +30,7 @@ class DriverPool:
         logger.info(f"Initialized driver pool with {self.min_drivers} min, {self.max_drivers} max drivers")
         
         if self.active_drivers == 0:
-            logger.warning("🚨 No drivers could be initialized during startup.")
+            logger.warning("No drivers could be initialized during startup.")
 
 
     def _create_driver(self) -> Optional[WebDriver]:
@@ -150,7 +150,7 @@ class DriverPool:
             try:
                 if self.is_driver_healthy(driver) and driver.session_id:
                     self.drivers.put(driver)
-                    logger.debug("🔁 Driver released back to pool")
+                    logger.debug("Driver released back to pool")
                 else:
                     logger.warning("Driver unhealthy on release. Discarding...")
                     try:
@@ -160,7 +160,7 @@ class DriverPool:
                     self.active_drivers = max(0, self.active_drivers - 1)
 
             except Exception as e:
-                logger.error(f"❌ Error in release_driver: {e}")
+                logger.error(f"Error in release_driver: {e}")
 
     
     def reset_driver(self, old_driver: Optional[webdriver.Chrome]) -> Optional[webdriver.Chrome]:
@@ -169,17 +169,17 @@ class DriverPool:
                 try:
                     old_driver.quit()
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to quit old driver: {e}")
+                    logger.warning(f"Failed to quit old driver: {e}")
                 finally:
                     self.active_drivers = max(0, self.active_drivers - 1)
 
             driver = self._create_driver()
             if driver:
                 self.active_drivers += 1
-                logger.info(f"🔄 Driver successfully reset. Active: {self.active_drivers}")
+                logger.info(f"Driver successfully reset. Active: {self.active_drivers}")
                 return driver
             else:
-                logger.warning("❌ Failed to reset driver")
+                logger.warning("Failed to reset driver")
                 return None
 
 
@@ -193,7 +193,7 @@ class DriverPool:
                 except Exception as e:
                     logger.warning(f"⚠️ Error quitting driver during pool shutdown: {e}")
             self.active_drivers = 0
-            logger.info("🧹 All drivers closed and pool cleared.")
+            logger.info("All drivers closed and pool cleared.")
 
 
 
@@ -244,7 +244,7 @@ def check_driver_pool_integrity(pool: DriverPool):
 
         for i, driver in enumerate(all_queued):
             if not pool.is_driver_healthy(driver):
-                logger.warning(f"🛑 Driver #{i} in queue is unhealthy!")
+                logger.warning(f"Driver #{i} in queue is unhealthy!")
 
         logger.info(f"🔍 Integrity check → Active: {active}, Queue Size: {queue_size}")
 
@@ -255,4 +255,4 @@ def check_driver_pool_integrity(pool: DriverPool):
         elif active > queue_size + (pool.max_drivers - pool.min_drivers):
             logger.error("❌ ERROR: active_drivers exceeds expected bounds!")
         else:
-            logger.info("✅ DriverPool integrity looks good.")
+            logger.info("DriverPool integrity looks good.")

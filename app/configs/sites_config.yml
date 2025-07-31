@@ -25,3 +25,9 @@ sites:
     url: https://surdna.org/grants-database/
     scroll: true
     scraper_class: SurdnaScraper
+  
+  - name: pickuptheflow
+    url: https://pickuptheflow.org/
+    scroll: true
+    scraper_class: PickupTheFlowScraper
+

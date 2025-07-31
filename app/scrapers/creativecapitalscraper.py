@@ -1,7 +1,7 @@
 import logging
 import time
-from scrapers.base_scraper import BaseScraper
-from utils.driver_pool import get_driver_pool
+from app.scrapers.base_scraper import BaseScraper
+from app.utils.driver_pool import get_driver_pool
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -12,7 +12,7 @@ class CreativeCapitalScraper(BaseScraper):
     def scrape(self):
         driver = get_driver_pool().get_driver()
         if driver is None:
-            logger.error("Could not obtain a webdriver instance.")
+            logger.error("CreativeCapital: Could not obtain a webdriver instance.")
             return []
 
         all_opportunities = []
@@ -27,10 +27,10 @@ class CreativeCapitalScraper(BaseScraper):
             try:
                 driver.find_element(By.ID, "desktop-grant")
                 checkbox_ids = ["desktop-grant", "desktop-texas"]
-                logger.info("🖥️ Detected desktop layout - using desktop checkboxes")
+                logger.info("CreativeCapital: Detected desktop layout - using desktop checkboxes")
             except:
                 checkbox_ids = ["mob-grant", "mob-texas"]
-                logger.info("📱 Detected mobile layout - using mobile checkboxes")
+                logger.info("CreativeCapital: Detected mobile layout - using mobile checkboxes")
 
             if checkbox_ids[0].startswith("desktop"):
                 accordion_ids = ["#collapseOne2", "#collapseTwo2"]
@@ -43,13 +43,13 @@ class CreativeCapitalScraper(BaseScraper):
                             time.sleep(0.3)
                             driver.execute_script("arguments[0].click();", toggle_btn)
                             time.sleep(0.5)
-                            logger.info(f"✅ Expanded accordion: {acc_id}")
+                            logger.info(f"CreativeCapital: Expanded accordion: {acc_id}")
                     except Exception as e:
-                        logger.warning(f"Failed to expand accordion '{acc_id}': {e}")
+                        logger.warning(f"CreativeCapital: Failed to expand accordion '{acc_id}': {e}")
 
             for checkbox_id in checkbox_ids:
                 try:
-                    logger.info(f"Waiting for checkbox '{checkbox_id}' to be clickable...")
+                    logger.info(f"CreativeCapital: Waiting for checkbox '{checkbox_id}' to be clickable...")
                     checkbox = WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.ID, checkbox_id))
                     )
@@ -60,23 +60,23 @@ class CreativeCapitalScraper(BaseScraper):
 
                     if not checkbox.is_selected():
                         driver.execute_script("arguments[0].click();", checkbox)
-                        logger.info(f"Clicked checkbox: {checkbox_id}")
+                        logger.info(f"CreativeCapital: Clicked checkbox: {checkbox_id}")
                     else:
-                        logger.info(f"Checkbox '{checkbox_id}' already selected, skipping click")
+                        logger.info(f"CreativeCapital: Checkbox '{checkbox_id}' already selected, skipping click")
                 except Exception as e:
-                    logger.warning(f"Could not click checkbox '{checkbox_id}': {e}")
+                    logger.warning(f"CreativeCapital: Could not click checkbox '{checkbox_id}': {e}")
 
 
-            logger.info("Filters applied, waiting for page to load...")
+            logger.info("CreativeCapital: Filters applied, waiting for page to load...")
             time.sleep(2)
 
-            logger.info("Starting to scrape opportunities")
+            logger.info("CreativeCapital: Starting to scrape opportunities")
             while True:
                 WebDriverWait(driver, 10).until(
                     EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.item"))
                 )
                 items = driver.find_elements(By.CSS_SELECTOR, "a.item")
-                logger.info(f"Found {len(items)} opportunities on current page")
+                logger.info(f"CreativeCapital: Found {len(items)} opportunities on current page")
 
                 for item in items:
                     try:
@@ -94,7 +94,7 @@ class CreativeCapitalScraper(BaseScraper):
                         }
                         all_opportunities.append(opp)
                     except Exception as e:
-                        logger.warning(f"⚠️ Error parsing opportunity: {e}")
+                        logger.warning(f"CreativeCapital:  Error parsing opportunity: {e}")
 
                 try:
                     next_btn = driver.find_element(By.CSS_SELECTOR, ".pagination-btn.next")
@@ -104,11 +104,11 @@ class CreativeCapitalScraper(BaseScraper):
                     driver.execute_script("arguments[0].click();", next_btn)
                     time.sleep(2)
                 except Exception:
-                    logger.info("No pagination or next page found.")
+                    logger.info("CreativeCapital: No pagination or next page found.")
                     break
 
         finally:
             get_driver_pool().release_driver(driver)
 
-        logger.info(f"Creative Capital: Total scraped: {len(all_opportunities)}")
+        logger.info(f"CreativeCapital: Total scraped: {len(all_opportunities)}")
         return all_opportunities

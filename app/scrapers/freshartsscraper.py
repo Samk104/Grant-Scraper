@@ -13,7 +13,7 @@ class FreshArtsScraper(BaseScraper):
     def scrape(self):
         driver = get_driver_pool().get_driver()
         if driver is None:
-            logger.error("Could not obtain a webdriver instance.")
+            logger.error("FreshArts: Could not obtain a webdriver instance.")
             return []
 
         all_opportunities = []
@@ -27,10 +27,10 @@ class FreshArtsScraper(BaseScraper):
                     WebDriverWait(driver, 20).until(
                         EC.frame_to_be_available_and_switch_to_it((By.TAG_NAME, "iframe"))
                     )
-                    logger.info("✅ Switched to iframe.")
+                    logger.info("FreshArts: Switched to iframe.")
                 except TimeoutException:
                     driver.save_screenshot("/tmp/iframe_not_found.png")
-                    logger.error("❌ Could not find or switch to iframe — screenshot saved.")
+                    logger.error("FreshArts: Could not find or switch to iframe - screenshot saved.")
                     return []
 
             
@@ -50,10 +50,12 @@ class FreshArtsScraper(BaseScraper):
                     driver.execute_script("arguments[0].scrollIntoView(true);", tab)
                     time.sleep(1)
                     tab.click()
-                    logger.info(f"✅ Clicked '{label}' tab.")
+                    logger.info(f"FreshArts: Clicked '{label}' tab.")
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(2)
                 except TimeoutException:
                     driver.save_screenshot(f"/tmp/{label.lower().replace(' ', '_')}_click_fail.png")
-                    logger.error(f"❌ Could not find '{label}' tab — screenshot saved.")
+                    logger.error(f"FreshArts: Could not find '{label}' tab — screenshot saved.")
                     return []
 
                 
@@ -63,7 +65,7 @@ class FreshArtsScraper(BaseScraper):
                 time.sleep(2)
 
                 items = driver.find_elements(By.CSS_SELECTOR, config["opportunity_selector"])
-                logger.info(f"🔍 Found {len(items)} items under '{label}'.")
+                logger.info(f"FreshArts: Found {len(items)} items under '{label}'.")
 
                 opportunities = []
                 for item in items:
@@ -97,9 +99,9 @@ class FreshArtsScraper(BaseScraper):
                         })
 
                     except Exception as e:
-                        logger.warning(f"❌ Error parsing opportunity card: {e}")
+                        logger.warning(f"FreshArts: Error parsing opportunity card: {e}")
 
-                logger.info(f"✅ Scraped {len(opportunities)} '{label}' opportunities.")
+                logger.info(f"FreshArts: Scraped {len(opportunities)} '{label}' opportunities.")
                 return opportunities
 
             
@@ -111,5 +113,5 @@ class FreshArtsScraper(BaseScraper):
             if driver:
                 get_driver_pool().release_driver(driver)
 
-        logger.info(f"🎯 Total opportunities scraped: {len(all_opportunities)}")
+        logger.info(f"FreshArts: Total opportunities scraped: {len(all_opportunities)}")
         return all_opportunities
