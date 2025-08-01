@@ -48,8 +48,12 @@ def get_scraper_instance(class_name: str, config: dict):
         return scraper_class(config)
     except (ModuleNotFoundError, AttributeError) as e:
         logger.warning(f"Runner: Could not find scraper '{class_name}', falling back to GenericOpportunityScraper: {e}")
-        # from app.scrapers.base_scraper import BaseScraper
-        # return BaseScraper(config)
+        try:
+            from app.scrapers.genericscraper import GenericScraper  
+            return GenericScraper(config)  
+        except Exception as ge:
+            logger.error(f"Runner: GenericScraper fallback also failed: {ge}")
+            return None
 
 def scrape_site(site_name: str, site_config: dict):
     logger.info(f"Runner: Thread started for site: {site_name}")
