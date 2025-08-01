@@ -12,22 +12,40 @@ sites:
     title_class: "opportunity-card-title"
     description_class: "description-text"
     tags_selector: ".small-text.grey-text"
+    opportunity_base_url: "https://fleato.com"
 
   - name: creativecapital
     url: https://creative-capital.org/category/artist-opportunities/
     scroll: true
     scraper_class: CreativeCapitalScraper
-    article_link_selector: .journal-single h2 a
-    content_within: .long-read
-    p_blocks_as_opportunity: true
+    desktop_filters: "filter-desktop"
+    opportunity_selector: "a.item"
+    title_selector: ".item-title h3"
+    description_selector: ".item-desc p"
+    deadline_selector: ".item-info span"
+    next_button_selector: ".pagination-btn.next"
+    accordion_selectors: ["#collapseOne2", "#collapseTwo2"]  
+    checkbox_ids_desktop: ["desktop-grant", "desktop-texas"]
+    checkbox_ids_mobile: ["mob-grant", "mob-texas"]        
   
   - name: surdna
     url: https://surdna.org/grants-database/
     scroll: true
     scraper_class: SurdnaScraper
+    row_selector: "table tbody tr"
+    cell_tag: "td"
+    org_link_selector: "a"
+    description_selector: ".project-summary p"
+    next_button_selector: "a.next.page-numbers"
   
   - name: pickuptheflow
     url: https://pickuptheflow.org/
     scroll: true
     scraper_class: PickupTheFlowScraper
+    article_selector: "article.post"
+    date_selector: "div.entry-date time"
+    link_selector: "h2.entry-title a"
+    title_selector: "h1.entry-title"
+    image_selector: "article img"
+
 

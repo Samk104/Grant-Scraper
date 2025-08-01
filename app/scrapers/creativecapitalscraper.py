@@ -6,6 +6,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from app.utils.extractors import extract_amount, extract_emails
+
 logger = logging.getLogger(__name__)
 
 class CreativeCapitalScraper(BaseScraper):
@@ -21,20 +23,19 @@ class CreativeCapitalScraper(BaseScraper):
         try:
             driver.get(config["url"])
             WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.ID, "filter-desktop"))
+                EC.presence_of_element_located((By.ID, config["desktop_filters"]))
             )
 
             try:
-                driver.find_element(By.ID, "desktop-grant")
-                checkbox_ids = ["desktop-grant", "desktop-texas"]
+                driver.find_element(By.ID, config["checkbox_ids_desktop"][0])
+                checkbox_ids = config["checkbox_ids_desktop"]
                 logger.info("CreativeCapital: Detected desktop layout - using desktop checkboxes")
             except:
-                checkbox_ids = ["mob-grant", "mob-texas"]
+                checkbox_ids = config["checkbox_ids_mobile"]
                 logger.info("CreativeCapital: Detected mobile layout - using mobile checkboxes")
 
             if checkbox_ids[0].startswith("desktop"):
-                accordion_ids = ["#collapseOne2", "#collapseTwo2"]
-                for acc_id in accordion_ids:
+                for acc_id in config.get("accordion_selectors", []):
                     try:
                         section = driver.find_element(By.CSS_SELECTOR, acc_id)
                         if "show" not in section.get_attribute("class"):
@@ -73,31 +74,48 @@ class CreativeCapitalScraper(BaseScraper):
             logger.info("CreativeCapital: Starting to scrape opportunities")
             while True:
                 WebDriverWait(driver, 10).until(
-                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.item"))
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["opportunity_selector"]))
                 )
-                items = driver.find_elements(By.CSS_SELECTOR, "a.item")
+                items = driver.find_elements(By.CSS_SELECTOR, config["opportunity_selector"])
                 logger.info(f"CreativeCapital: Found {len(items)} opportunities on current page")
 
                 for item in items:
                     try:
-                        title = item.find_element(By.CSS_SELECTOR, ".item-title h3").text.strip()
-                        description = item.find_element(By.CSS_SELECTOR, ".item-desc p").text.strip()
-                        deadline = item.find_element(By.CSS_SELECTOR, ".item-info span").text.strip()
-                        url = item.get_attribute("href")
+                        try:
+                            title = item.find_element(By.CSS_SELECTOR, config["title_selector"]).text.strip()
+                        except:
+                            title = ""
+                        try:    
+                            description = item.find_element(By.CSS_SELECTOR, config["description_selector"]).text.strip()
+                        except:
+                            description = ""
+                        try:
+                            deadline = item.find_element(By.CSS_SELECTOR, config["deadline_selector"]).text.strip()
+                        except:
+                            deadline = ""
+                        try:
+                            url = item.get_attribute("href")
+                        except:
+                            url = ""
+                        
+                        full_text = f"{title} {description}"
+                        amounts_found = extract_amount(full_text)
+                        emails_found = extract_emails(full_text)
 
                         opp = {
                             "title": title,
-                            "description": description,
-                            "deadline": deadline.replace("DEADLINE:", "").strip(),
                             "url": url,
-                            "source": config["url"]
+                            "description": description,
+                            "grant_amount": ", ".join(amounts_found) if amounts_found else "",
+                            "deadline": deadline.replace("DEADLINE:", "").strip(),
+                            "email": ", ".join(emails_found) if emails_found else "",
                         }
                         all_opportunities.append(opp)
                     except Exception as e:
                         logger.warning(f"CreativeCapital:  Error parsing opportunity: {e}")
 
                 try:
-                    next_btn = driver.find_element(By.CSS_SELECTOR, ".pagination-btn.next")
+                    next_btn = driver.find_element(By.CSS_SELECTOR, config["next_button_selector"])
                     next_page = next_btn.get_attribute("data-page")
                     if "disabled" in next_btn.get_attribute("class") or not next_page:
                         break

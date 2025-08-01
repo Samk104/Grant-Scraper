@@ -1,10 +1,12 @@
 import logging
 import time
+from datetime import datetime
 from app.scrapers.base_scraper import BaseScraper
 from app.utils.driver_pool import get_driver_pool
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from app.utils.extractors import extract_amount, extract_emails 
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,13 @@ class SurdnaScraper(BaseScraper):
 
                 try:
                     WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "table tbody tr"))
+                        EC.presence_of_element_located((By.CSS_SELECTOR, config["row_selector"]))
                     )
                 except Exception as e:
                     logger.warning(f"Surdna: No table rows found on page {page}: {e}")
                     break
 
-                rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
+                rows = driver.find_elements(By.CSS_SELECTOR, config["row_selector"])
                 logger.info(f"Surdna: Found {len(rows)} rows on page {page}")
 
                 if not rows:
@@ -44,7 +46,7 @@ class SurdnaScraper(BaseScraper):
 
                 for i, row in enumerate(rows, start=1):
                     try:
-                        cols = row.find_elements(By.TAG_NAME, "td")
+                        cols = row.find_elements(By.TAG_NAME, config["cell_tag"])
                         if len(cols) < 5:
                             continue
 
@@ -57,7 +59,7 @@ class SurdnaScraper(BaseScraper):
                         if status.lower() != "active":
                             continue
 
-                        org_links = org_col.find_elements(By.CSS_SELECTOR, "a")
+                        org_links = org_col.find_elements(By.CSS_SELECTOR, config["org_link_selector"])
                         if org_links:
                             org_link = org_links[0]
                             title = org_link.text.strip()
@@ -67,24 +69,31 @@ class SurdnaScraper(BaseScraper):
                             link_url = "No URL found"
                             logger.warning(f"Surdna: Missing <a> tag in row {i} on page {page}. Raw org cell: '{org_col.text.strip()}'")
 
-                        description_elem = org_col.find_elements(By.CSS_SELECTOR, ".project-summary p")
+                        description_elem = org_col.find_elements(By.CSS_SELECTOR, config["description_selector"])
                         description = description_elem[0].text.strip() if description_elem else "No description provided"
                         description += f"\n\nAmount: {amount}, Duration: {duration}, Year: {year}"
+                        
+                        full_text = f"{title} {description}"
+                        emails_found = extract_emails(full_text)
+                        amounts_found = extract_amount(full_text)
+                        
+                        deadline = ""
 
                         opp = {
                             "title": title,
-                            "description": description,
-                            "deadline": None,
                             "url": link_url,
-                            "source": config["url"],
-                            "tags": f"{amount}, {duration}, {year}"
+                            "description": description,
+                            "grant_amount": ", ".join(amounts_found) if amounts_found else "",
+                            "tags": f"{amount}, {duration}, {year}",
+                            "deadline": deadline,
+                            "email": ", ".join(emails_found) if emails_found else "",
                         }
                         all_opportunities.append(opp)
                     except Exception as e:
                         logger.warning(f"Surdna: Failed to parse row {i} on page {page}: {e}")
 
                 try:
-                    next_btn = driver.find_element(By.CSS_SELECTOR, "a.next.page-numbers")
+                    next_btn = driver.find_element(By.CSS_SELECTOR, config["next_button_selector"])
                     if next_btn:
                         page += 1
                         time.sleep(1.5)

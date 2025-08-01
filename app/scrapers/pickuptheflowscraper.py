@@ -1,10 +1,6 @@
 import logging
 import time
-import pytesseract
-import requests
-from io import BytesIO
 import re
-from PIL import Image
 from datetime import datetime, timezone
 from dateutil import parser
 from selenium.webdriver.common.by import By
@@ -13,6 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from app.scrapers.base_scraper import BaseScraper
 from app.utils.driver_pool import get_driver_pool
 from app.utils.text_from_image import extract_text_from_image_advanced
+from app.utils.extractors import extract_amount, extract_emails
 import spacy
 
 
@@ -27,12 +24,11 @@ class PickupTheFlowScraper(BaseScraper):
             logger.error("PickupTheFlow: Could not obtain a webdriver instance.")
             return []
 
-        config = self.config
-        url = config["url"]
         all_opportunities = []
+        config = self.config
 
         try:
-            driver.get(url)
+            driver.get(config["url"])
             logger.info("PickupTheFlow: Loaded initial page.")
             curr_year = datetime.now(timezone.utc).year
 
@@ -41,7 +37,7 @@ class PickupTheFlowScraper(BaseScraper):
             while True:
                 time.sleep(2)
                 self.gradual_scroll(driver)
-                articles = driver.find_elements(By.CSS_SELECTOR, "article.post")
+                articles = driver.find_elements(By.CSS_SELECTOR, config["article_selector"])
 
                 logger.info(f"PickupTheFlow: Found {len(articles)} articles")
 
@@ -49,7 +45,7 @@ class PickupTheFlowScraper(BaseScraper):
                
                 for article in articles:
                     try:
-                        date_elem = article.find_element(By.CSS_SELECTOR, "div.entry-date time")
+                        date_elem = article.find_element(By.CSS_SELECTOR, config["date_selector"])
                         date_str = date_elem.get_attribute("datetime")
                         article_year = parser.parse(date_str).year
 
@@ -58,7 +54,7 @@ class PickupTheFlowScraper(BaseScraper):
                             keep_going = False
                             break
 
-                        link_elem = article.find_element(By.CSS_SELECTOR, "h2.entry-title a")
+                        link_elem = article.find_element(By.CSS_SELECTOR, config["link_selector"])
                         post_url = link_elem.get_attribute("href")
 
                         if post_url in seen_links:
@@ -69,18 +65,18 @@ class PickupTheFlowScraper(BaseScraper):
                         driver.execute_script("window.open(arguments[0]);", post_url)
                         driver.switch_to.window(driver.window_handles[-1])
                         WebDriverWait(driver, 10).until(
-                             EC.presence_of_element_located((By.CSS_SELECTOR, "article img"))
+                             EC.presence_of_element_located((By.CSS_SELECTOR, config["image_selector"]))
                             )   
 
                         
                         try:
-                            title = driver.find_element(By.CSS_SELECTOR, "h1.entry-title").text.strip()
+                            title = driver.find_element(By.CSS_SELECTOR, config["title_selector"]).text.strip()
                         except:
-                             title = "Untitled" or " "
+                             title = ""
                         
 
                         try:
-                            img_elem = driver.find_element(By.CSS_SELECTOR, "article img")
+                            img_elem = driver.find_element(By.CSS_SELECTOR, config["image_selector"])
                             img_url = img_elem.get_attribute("src")
                             ocr_result = extract_text_from_image_advanced(img_url)
                             
@@ -93,12 +89,13 @@ class PickupTheFlowScraper(BaseScraper):
                         except Exception as e:
                             logger.warning(f"No image or OCR failed for '{title}': {e}")
                             image_text = "No image text found"
+                            amount_hint = location_hint = deadline_hint = "" 
 
                         try:
                             deadline = self.extract_deadline(image_text, deadline_hint)
                         except Exception as e:
                             logger.warning(f"Failed to extract deadline for '{title}': {e}")
-                            deadline = None
+                            deadline = ""
 
                         try:
                             location = self.extract_location(image_text, location_hint)
@@ -117,26 +114,32 @@ class PickupTheFlowScraper(BaseScraper):
                                     final_url = post_url
                         except Exception as e:
                             logger.warning(f"Failed to extract apply link for '{title}': {e}")
-                            apply_link = "No link found"
+                            apply_link = ""
 
                         try:
-                            amount = self.extract_amount(image_text, amount_hint)
+                            amount = extract_amount(image_text, amount_hint)
                         except Exception as e:
                             logger.warning(f"Failed to extract amount for '{title}': {e}")
-                            amount = "Unknown"
+                            amount = ""
+                        
+                        try:
+                            emails_found = extract_emails(f"{title} {image_text}")
+                        except Exception as e:
+                            logger.warning(f"Failed to extract emails for '{title}': {e}")
+                            emails_found = []
                         
                         
-                        logger.info(f"PickupTheFlow: Extracted - Description: {image_text}, Deadline: {deadline}, Location: {location}, Amount: {amount}")
 
                         
                         if deadline is None or deadline >= datetime.now(timezone.utc).date():
                             all_opportunities.append({
                                 "title": title,
-                                "description": image_text,
-                                "deadline": deadline.strftime("%Y-%m-%d") if deadline else None,
                                 "url": final_url,
-                                "source": url,
+                                "description": image_text,
+                                "grant_amount": ", ".join(amount) if amount else "",
                                 "tags": f"{amount if amount else ''}, {location if location else ''}",
+                                "deadline": deadline.strftime("%Y-%m-%d") if deadline else "",
+                                 "email": ", ".join(emails_found) if emails_found else "",
                             })
 
                         driver.close()
@@ -172,8 +175,6 @@ class PickupTheFlowScraper(BaseScraper):
             lines = candidate_text.splitlines()
             for i, line in enumerate(lines):
                 if "deadline" in line.lower():
-                    #DEBUG:
-                    logger.info(f"PickupTheFlow: Found 'deadline' in line {i}: {line} and hint: {hint}")
                     candidate_lines = " ".join(lines[i:i+3])
                     break
             else:
@@ -184,8 +185,6 @@ class PickupTheFlowScraper(BaseScraper):
              r"\s+(?:[1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?,?\s+\d{4}\b"
 
             matches = re.findall(date_regex, candidate_lines, flags=re.IGNORECASE)
-            #DEBUG:
-            logger.info(f"PickupTheFlow: Found potential deadlines: {matches}")
             for match in matches:
                 try:
                     normalized = re.sub(r"(\d{1,2})(st|nd|rd|th)", r"\1", match, flags=re.IGNORECASE)
@@ -208,8 +207,6 @@ class PickupTheFlowScraper(BaseScraper):
         def parse_locations(text_input):
             doc = nlp(text_input)
             locations = [ent.text.strip() for ent in doc.ents if ent.label_ == "GPE"]
-            #DEBUG:
-            logger.info(f"PickupTheFlow: Found locations: {locations} and hint: {hint}")
             if locations:
                 from collections import Counter
                 return Counter(locations).most_common(1)[0][0]
@@ -232,46 +229,18 @@ class PickupTheFlowScraper(BaseScraper):
     def extract_apply_link(self, text):
         lines = text.splitlines()
 
-        # Prioritize lines mentioning 'apply' or 'info'
         for i, line in enumerate(lines):
             if "apply" in line.lower() or "info" in line.lower():
-                for j in range(i, min(i + 5, len(lines))):  # Look in nearby lines
+                for j in range(i, min(i + 5, len(lines))):  
                     url_match = re.search(r"https?://[^\s\)\]]+", lines[j])
                     if url_match:
                         return url_match.group(0).strip().rstrip(".,;")
 
-        # Fallback: first URL in the full text
         fallback = re.search(r"https?://[^\s\)\]]+", text)
         return fallback.group(0).strip().rstrip(".,;") if fallback else "No link found"
 
 
 
-    
-    def extract_amount(self, text, hint=None):
-        def match_amount(text_input):
-            pattern = r"([\$€£])\s?(\d+(?:[.,]?\d+)?)([KkMm]?)\s?(?:[-–]\s?([\$€£]?)\s?(\d+(?:[.,]?\d+)?)([KkMm]?))?"
-            match = re.search(pattern, text_input)
-            logger.info(f"PickupTheFlow: Found amount: {match} and hint: {hint}")
-            if not match:
-                return None
-
-            currency, num1, unit1, cur2, num2, unit2 = match.groups()
-
-            def convert(value, unit):
-                value = value.replace(",", "")
-                multiplier = {"k": 1_000, "m": 1_000_000}.get(unit.lower(), 1)
-                return int(float(value) * multiplier)
-
-            try:
-                amount1 = convert(num1, unit1)
-                if num2:
-                    amount2 = convert(num2, unit2)
-                    return f"{currency}{amount1}-{cur2 or currency}{amount2}"
-                else:
-                    return f"{currency}{amount1}"
-            except Exception:
-                return None
-
-        return match_amount(hint or "") or match_amount(text) or "Unknown"
+  
 
 

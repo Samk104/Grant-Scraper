@@ -71,8 +71,15 @@ class LLMClient:
                     \"\"\"
 
                     Your tasks:
-                    1. Determine if the grant is relevant for the organization. Important: If the opportunity is a residency (artist residency, etc.), do not attempt to extract award_amount, deadline, priority_score, or possibility, just mark is_relevant to false and explain that it is a residency in the explanation field.
-                    Also the grant is not relevant, do noy attempt to extract funding amount, deadline, or priority score. Just set is_relevant to false and explain why it is not relevant in the explanation field. Also most of the time, any emergency related grants are not relevant, so set is_relevant to false and explain why it is not relevant in the explanation field.
+                     1. Determine if the grant is relevant for the organization.
+
+                    Important exclusions:
+                    - If the opportunity is a residency (e.g., artist residency), set is_relevant to false and explain that it is a residency.
+                    - If the opportunity is a course, class, or workshop, set is_relevant to false and explain that it is a course.
+                    - If the opportunity is related to emergency assistance or relief (e.g., emergency grants), set is_relevant to false and explain that it is emergency-related.
+                    - If the grant is age-restricted to under 35 (example 18–24 age group), set is_relevant to false and explain the age restriction. Age limits above 35 are acceptable.
+
+                    If the grant is not relevant, do not attempt to extract award_amount, deadline, or priority_score. Just set is_relevant to false and include the reason in the explanation field.
 
 
                     2.  Extract every amount of funding from the Grant Text. The amount may appear in any of these formats:
@@ -123,5 +130,5 @@ class LLMClient:
 
                     Respond only with valid JSON and make sure to return all JSON values cleanly. Do not double-quote or single-quote inside string values. Do not hallucinate or fabricate information. Make sure the JSON is valid and contains all required fields.
                     Also make sure you make very sincere attempt to extract the funding amount, deadline, and relevance of the grant based on the provided context. Leave fields null if data is unavailable. 
-                    Be especially careful to avoid misinterpreting residencies as grants. If it is a residency, set is_relevant to false and explain. Photography grants are not relevant. Visual arts grants are not relevant unless they specifically mention filmmaking or video production. Film making grants are relevant and even more relevant if targeted towards artists or musicians.
+                    Be especially careful to avoid misinterpreting residencies or courses as grants. Photography grants are not relevant. Visual arts grants are not relevant unless they specifically mention filmmaking or video production. Film making grants are relevant and even more relevant if targeted towards artists or musicians or Asians/Southeast Asians.
                     """.strip()
