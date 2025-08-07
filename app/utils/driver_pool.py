@@ -40,7 +40,7 @@ class DriverPool:
 
         for attempt in range(1, max_retries + 1):
             try:
-                logger.info(f"🛠️ Attempt {attempt}/{max_retries} - Creating Remote Chrome driver")
+                logger.info(f"Driver Pool: Attempt {attempt}/{max_retries} - Creating Remote Chrome driver")
                 options = ChromeOptions()
                 options.add_argument('--headless')
                 options.add_argument('--disable-gpu')
@@ -75,18 +75,18 @@ class DriverPool:
                 )
 
                 if driver.session_id and self.is_driver_healthy(driver):
-                    logger.info("✅ Driver successfully created and session started.")
+                    logger.info("Driver successfully created and session started.")
                     return driver
                 else:
-                    logger.error("⚠️ Driver session_id is None. Discarding driver.")
+                    logger.error("Driver session_id is None. Discarding driver.")
                     driver.quit()
 
             except Exception as e:
-                logger.error(f"❌ Driver creation failed on attempt {attempt}/{max_retries}: {e}")
+                logger.error(f"Driver Pool: Driver creation failed on attempt {attempt}/{max_retries}: {e}")
 
             time.sleep(retry_delay) 
 
-        logger.critical("🚫 All driver creation attempts failed after retries.")
+        logger.critical("Driver Pool: All driver creation attempts failed after retries.")
         return None
 
             
@@ -115,7 +115,7 @@ class DriverPool:
                         logger.info("Driver passed health check")
                         return driver
                     else:
-                        logger.warning("❌ Driver failed health check. Discarding.")
+                        logger.warning("Driver Pool: Driver failed health check. Discarding.")
                         try:
                             driver.quit()
                         except Exception as e:
@@ -128,23 +128,23 @@ class DriverPool:
                     driver = self._create_driver()
                     if driver:
                         self.active_drivers += 1
-                        logger.info(f"✅ New driver created. Active drivers now: {self.active_drivers}")
+                        logger.info(f"Driver Pool: New driver created. Active drivers now: {self.active_drivers}")
                         return driver
                     else:
-                        logger.error("❌ Failed to create new driver")
+                        logger.error("Driver Pool: Failed to create new driver")
                 else:
-                    logger.info(f"⏳ Pool at capacity ({self.active_drivers}/{self.max_drivers}). Waiting...")
+                    logger.info(f"Driver Pool: Pool at capacity ({self.active_drivers}/{self.max_drivers}). Waiting...")
 
             time.sleep(0.5)
 
-        logger.warning(f"⚠️ No drivers available after 30s wait. Active: {self.active_drivers}, Queue: {self.drivers.qsize()}")
+        logger.warning(f"Driver Pool: No drivers available after 30s wait. Active: {self.active_drivers}, Queue: {self.drivers.qsize()}")
         return None
 
 
     def release_driver(self, driver: Optional[webdriver.Chrome]):
         with self.lock:
             if driver is None:
-                logger.warning("⚠️ release_driver called with None")
+                logger.warning("Driver Pool: release_driver called with None")
                 return
 
             try:
@@ -156,7 +156,10 @@ class DriverPool:
                     try:
                         driver.quit()
                     except Exception as e:
-                        logger.warning(f"Error while quitting driver during release: {e}")
+                        if "session with ID" in str(e) or "invalid session id" in str(e).lower():
+                            logger.debug(f"Driver already invalidated during release: {e}")
+                        else:
+                            logger.warning(f"Error while quitting driver during release: {e}")
                     self.active_drivers = max(0, self.active_drivers - 1)
 
             except Exception as e:
@@ -191,9 +194,15 @@ class DriverPool:
                 try:
                     driver.quit()
                 except Exception as e:
-                    logger.warning(f"⚠️ Error quitting driver during pool shutdown: {e}")
-            self.active_drivers = 0
-            logger.info("All drivers closed and pool cleared.")
+                    if "session with ID" in str(e) or "invalid session id" in str(e).lower():
+                        logger.debug(f"Driver Pool: Driver already invalidated during shutdown: {e}")
+                    else:
+                        logger.warning(f"Driver Pool: Error quitting driver during pool shutdown: {e}")
+                finally:
+                    self.active_drivers = max(0, self.active_drivers - 1)
+
+            logger.info("Driver Pool: All drivers closed and pool cleared.")
+
 
 
 
@@ -246,13 +255,13 @@ def check_driver_pool_integrity(pool: DriverPool):
             if not pool.is_driver_healthy(driver):
                 logger.warning(f"Driver #{i} in queue is unhealthy!")
 
-        logger.info(f"🔍 Integrity check → Active: {active}, Queue Size: {queue_size}")
+        logger.info(f"Integrity check → Active: {active}, Queue Size: {queue_size}")
 
         if active < 0:
-            logger.error("❌ ERROR: active_drivers is negative!")
+            logger.error("Driver Pool: ERROR: active_drivers is negative!")
         elif active < queue_size:
-            logger.error("❌ ERROR: More drivers in queue than tracked active drivers!")
+            logger.error("Driver Pool: ERROR: More drivers in queue than tracked active drivers!")
         elif active > queue_size + (pool.max_drivers - pool.min_drivers):
-            logger.error("❌ ERROR: active_drivers exceeds expected bounds!")
+            logger.error("Driver Pool: ERROR: active_drivers exceeds expected bounds!")
         else:
             logger.info("DriverPool integrity looks good.")

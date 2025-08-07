@@ -154,7 +154,9 @@ class PickupTheFlowScraper(BaseScraper):
                     break
 
         finally:
-            get_driver_pool().release_driver(driver)
+            if driver:
+                get_driver_pool().release_driver(driver)
+                logging.info("PickupTheFlow: Scraper finished and driver released.")
 
         logger.info(f"PickupTheFlow: Scraped {len(all_opportunities)} valid opportunities.")
         return all_opportunities

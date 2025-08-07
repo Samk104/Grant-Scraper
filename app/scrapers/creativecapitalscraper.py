@@ -126,7 +126,9 @@ class CreativeCapitalScraper(BaseScraper):
                     break
 
         finally:
-            get_driver_pool().release_driver(driver)
+            if driver:
+                get_driver_pool().release_driver(driver)
+                logging.info("CreativeCapital: Scraper finished and driver released.")
 
         logger.info(f"CreativeCapital: Total scraped: {len(all_opportunities)}")
         return all_opportunities

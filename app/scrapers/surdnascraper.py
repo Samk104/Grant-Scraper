@@ -105,7 +105,9 @@ class SurdnaScraper(BaseScraper):
                     break
 
         finally:
-            get_driver_pool().release_driver(driver)
+            if driver:
+                get_driver_pool().release_driver(driver)
+                logger.info("Surdna: Scraper finished and driver released.")
 
         logger.info(f"Surdna: Total scraped: {len(all_opportunities)}")
         return all_opportunities

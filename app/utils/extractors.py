@@ -15,6 +15,7 @@ def extract_amount(text: str, hint: str =None):
             multiplier = {"k": 1_000, "m": 1_000_000}
             return int(float(value) * multiplier.get(unit.lower(), 1))
 
+        MIN_AMOUNT_THRESHOLD = 100
         amounts = []
 
         text = normalize_text(text)
@@ -30,7 +31,8 @@ def extract_amount(text: str, hint: str =None):
             num, unit = match.groups()
             try:
                 amount = convert(num, unit)
-                amounts.append(f"${amount}")
+                if amount >= MIN_AMOUNT_THRESHOLD:
+                    amounts.append(f"${amount}")
             except:
                 continue
 
@@ -43,7 +45,8 @@ def extract_amount(text: str, hint: str =None):
             try:
                 amount1 = convert(num1, unit1)
                 amount2 = convert(num2, unit2)
-                amounts.append(f"${amount1}-${amount2}")
+                if amount1 >= MIN_AMOUNT_THRESHOLD and amount2 >= MIN_AMOUNT_THRESHOLD:
+                    amounts.append(f"${amount1}-${amount2}")
             except:
                 continue
 
@@ -55,7 +58,9 @@ def extract_amount(text: str, hint: str =None):
                     for i in range(len(words)):
                         phrase = " ".join(words[i:i+5])
                         value = w2n.word_to_num(phrase)
-                        amounts.append(f"${value}")
+                        if value >= MIN_AMOUNT_THRESHOLD:
+                            amounts.append(f"${value}")
+
                 except:
                     continue
 

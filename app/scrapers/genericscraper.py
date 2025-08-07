@@ -103,7 +103,9 @@ class GenericScraper(BaseScraper):
                     continue
 
         finally:
-            get_driver_pool().release_driver(driver)
+            if driver:
+                get_driver_pool().release_driver(driver)
+                logging.info("GenericScraper: Scraper finished and driver released.")
 
         logger.info(f"GenericScraper: Scraped {len(all_opportunities)} opportunities.")
         return all_opportunities

@@ -1,4 +1,3 @@
-from datetime import datetime
 import logging
 import time
 from app.scrapers.base_scraper import BaseScraper
@@ -9,6 +8,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException 
 from app.utils.extractors import extract_amount
 from app.utils.extractors import extract_emails
+from dateutil.parser import parse
 import re
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class FreshArtsScraper(BaseScraper):
             def click_tab_and_extract(label):
                 try:
                     tab = WebDriverWait(driver, 20).until(
-                        EC.element_to_be_clickable((By.XPATH, f'//p[text()="{label}"]/ancestor::div[contains(@class, "opportunity-categories-item")]'))
+                        EC.element_to_be_clickable((By.XPATH, f'//p[contains(text(), "{label}")]/parent::div'))
                     )
                     driver.execute_script("arguments[0].scrollIntoView(true);", tab)
                     time.sleep(1)
@@ -101,26 +101,14 @@ class FreshArtsScraper(BaseScraper):
                         driver.switch_to.window(driver.window_handles[-1])  
                         
                         try:
-                            if self.config.get("iframe", False):
-                                try:
-                                    iframe = WebDriverWait(driver, 20).until(
-                                        EC.presence_of_element_located(
-                                            (By.XPATH, '//iframe[contains(@src, "fleato.com/m/opportunities/o/")]')
-                                        )
-                                    )
-                                    driver.switch_to.frame(iframe)  
-                                except TimeoutException:
-                                    driver.save_screenshot("/tmp/iframe_not_found_detailsPage.png")
-                                    logger.error("FreshArts: Could not find or switch to iframe for details page - screenshot saved.")
-                                    return []
-
                             
                             WebDriverWait(driver, 10).until(
                                 EC.presence_of_element_located((By.CLASS_NAME, "event-info")) 
                             )
                             container = driver.find_element(By.CLASS_NAME, "event-info")
                             blocks = container.find_elements(By.CLASS_NAME, "border")
-
+                            
+                            final_email = ""
                             for block in blocks:
                                 label_text = block.find_element(By.TAG_NAME, "span").text.strip().lower()
                                 content_div = block.find_element(By.TAG_NAME, "div")
@@ -128,11 +116,12 @@ class FreshArtsScraper(BaseScraper):
                                 if "when" in label_text:
                                     try:
                                         raw_date = content_div.find_element(By.TAG_NAME, "p").text.strip()
-                                        parsed = datetime.strptime(raw_date, "%A, %d %B, %Y") 
+                                        parsed = parse(raw_date, fuzzy=True, ignoretz=True)
                                         deadline = parsed.strftime("%Y-%m-%d")
                                     except:
                                         logger.warning(f"FreshArts: Failed to parse date from '{raw_date}' for {full_url}")
 
+                    
                                 elif "contact" in label_text:
                                     try:
                                         email_text = content_div.find_element(By.TAG_NAME, "p").text.strip()
@@ -146,29 +135,44 @@ class FreshArtsScraper(BaseScraper):
                                         apply_link = content_div.find_element(By.TAG_NAME, "a").get_attribute("href")
                                     except:
                                         logger.warning(f"FreshArts: Failed to extract apply link for {full_url}")
+                            
+                            description_html = description or ""
+                            try:
+                                desc_container = WebDriverWait(driver, 10).until(
+                                            EC.presence_of_element_located((By.CLASS_NAME, "description"))
+                                        )
+                                paragraphs = desc_container.find_elements(By.TAG_NAME, "p")
+
+                                clean_paragraphs = []
+                                for p in paragraphs:
+                                    raw = p.text.strip()
+                                    if raw:
+                                        clean = re.sub(r"\s+", " ", raw).strip()
+                                        clean_paragraphs.append(clean)
+
+                                description_html = "\n".join(clean_paragraphs)
+
+                            except Exception as e:
+                                logger.warning(f"FreshArts: Could not extract full description from {full_url}: {e}")
+                                
 
                         except Exception as e:
                             logger.warning(f"FreshArts: Failed to extract detail page for {full_url}: {e}")
                         finally:
                             driver.close()
                             driver.switch_to.window(driver.window_handles[0])
+                            if self.config.get("iframe", False):
+                                try:
+                                    WebDriverWait(driver, 20).until(
+                                        EC.frame_to_be_available_and_switch_to_it((By.TAG_NAME, "iframe"))
+                                    )
+                                except TimeoutException:
+                                    driver.save_screenshot("/tmp/iframe_not_found.png")
+                                    logger.error("FreshArts: Could not find or switch to iframe after coming back from details - screenshot saved.")
+                                    continue
                         
-                        description_html = description or ""
-                        try:
-                            desc_container = driver.find_element(By.CLASS_NAME, "description")
-                            paragraphs = desc_container.find_elements(By.TAG_NAME, "p")[1:] 
+                        
 
-                            clean_paragraphs = []
-                            for p in paragraphs:
-                                raw = p.text.strip()
-                                if raw:
-                                    no_html = re.sub(r"<.*?>", "", raw)  
-                                    clean = re.sub(r"\s+", " ", no_html).strip() 
-                                    clean_paragraphs.append(clean)
-
-                            description_html = "\n".join(clean_paragraphs)
-                        except Exception as e:
-                            logger.warning(f"FreshArts: Could not extract full description from {full_url}: {e}")
 
 
                         opportunities.append({
@@ -195,6 +199,7 @@ class FreshArtsScraper(BaseScraper):
         finally:
             if driver:
                 get_driver_pool().release_driver(driver)
+                logging.info("FreshArts: Scraper finished and driver released.")
 
         logger.info(f"FreshArts: Total opportunities scraped: {len(all_opportunities)}")
         return all_opportunities

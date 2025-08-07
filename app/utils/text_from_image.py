@@ -25,34 +25,26 @@ def extract_text_from_image_advanced(image_url):
         image = Image.open(BytesIO(response.content)).convert("RGB")
         image_np = np.array(image)
 
-        # Convert to grayscale
+       
         gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
         h, w = gray.shape
 
-        # ===============================
-        # 🧠 FULL TEXT (entire grayscale)
-        # ===============================
         ocr_config = r'--oem 3 --psm 6'
         full_text = pytesseract.image_to_string(gray, config=ocr_config).strip()
 
-        # ===============================
-        # 💰 AMOUNT (Top-right box)
-        # ===============================
+
         top_right_crop = padded_crop(gray, 400, 5, 1000, 200, pad=10)
         _, amt_bin = cv2.threshold(top_right_crop, 170, 255, cv2.THRESH_BINARY_INV)
         top_right_text = pytesseract.image_to_string(amt_bin, config='--psm 8').strip()
 
-        # ===============================
-        # 🗺️ LOCATION (Bottom-right label)
-        # ===============================
-        # Convert to HSV and extract the Value channel (retains contrast better for dark text on color)
+
         hsv = cv2.cvtColor(image_np, cv2.COLOR_RGB2HSV)
         v_channel = hsv[:, :, 2]
 
-        # Widen crop region slightly to avoid cutting location text
+      
         bottom_right_crop = padded_crop(v_channel, 300, 600, 1200, 1200, pad=15)
 
-        # Use adaptive thresholding instead of fixed binary
+       
         loc_bin = cv2.adaptiveThreshold(
             bottom_right_crop, 255,
             cv2.ADAPTIVE_THRESH_MEAN_C,
@@ -60,16 +52,14 @@ def extract_text_from_image_advanced(image_url):
             11, 2
         )
 
-        # OCR
+     
         bottom_right_text = pytesseract.image_to_string(loc_bin, config='--psm 8').strip()
 
 
 
-        # ===============================
-        # 📅 DEADLINE (Middle-left header)
-        # ===============================
+
         try:
-            # --- Template Matching First ---
+
             template_path = os.path.join(os.path.dirname(__file__), "assets", "deadline_template.jpg")
             template = cv2.imread(template_path, 0)
             if template is None:
@@ -86,7 +76,7 @@ def extract_text_from_image_advanced(image_url):
                     tx, ty = max_loc
                     th, tw = template.shape
 
-                    # Crop region to the right of the "DEADLINE" label
+                  
                     x0 = tx + tw + 10
                     y0 = ty
                     x1 = min(w, x0 + 1000)
@@ -96,32 +86,26 @@ def extract_text_from_image_advanced(image_url):
                     _, deadline_bin = cv2.threshold(deadline_crop, 170, 255, cv2.THRESH_BINARY)
                     deadline_text = pytesseract.image_to_string(deadline_bin, config='--psm 7').strip()
 
-                    cv2.imwrite("deadline_from_template.png", deadline_bin)
+                    
                 else:
                     logger.warning("Template match for DEADLINE failed. Falling back to manual crop.")
             else:
                 logger.warning("Deadline template image not found. Falling back to manual crop.")
 
-            # --- Fallback: Manual Crop ---
+         
             if not deadline_text:
                 manual_crop = padded_crop(gray, 22, 182, 750, 400, pad=10)
                 _, manual_bin = cv2.threshold(manual_crop, 170, 255, cv2.THRESH_BINARY)
                 deadline_text = pytesseract.image_to_string(manual_bin, config='--psm 6').strip()
 
-                cv2.imwrite("deadline_fallback.png", manual_bin)
+               
 
         except Exception as e:
             logger.warning(f"Deadline extraction failed: {e}")
             deadline_text = ""
 
-        
-        
-        cv2.imwrite("amount_crop.png", amt_bin)
-        cv2.imwrite("location_crop.png", loc_bin)
-        cv2.imwrite("deadline_crop.png", deadline_bin)
 
 
-        # Return dictionary
         return {
             "full_text": full_text,
             "top_right_text": top_right_text,
