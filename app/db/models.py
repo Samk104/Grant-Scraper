@@ -10,6 +10,7 @@ class Opportunity(Base):
     title = Column(String, nullable=False)
     url = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    grant_amount = Column(String, nullable=True)
     tags = Column(String, nullable=True)
     deadline = Column(String, nullable=True)
     email = Column(String, nullable=True)
@@ -18,7 +19,7 @@ class Opportunity(Base):
     is_relevant = Column(Boolean, nullable=True)
     is_viewed = Column(Boolean, nullable=False, default=False)
     
-    llm_info = Column(JSONB, nullable=True) #To store LLM-generated explanation | confidence | prompt_version, etc
+    llm_info = Column(JSONB, nullable=True) 
     
-    user_feedback = Column(Boolean, nullable=True)  # true if user agrees with LLM
+    user_feedback = Column(Boolean, nullable=True)  
     user_feedback_info = Column(JSONB, nullable=True) 

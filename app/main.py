@@ -23,7 +23,7 @@ MAX_THREADS = 6
 
 def load_config():
     config_path = os.path.join(os.getcwd(), "app", "configs", "sites_config.yml")
-    logger.info(f"📥 Loading site config from: {config_path}")
+    logger.info(f"Runner: Loading site config from: {config_path}")
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
@@ -37,9 +37,9 @@ def write_backup(site_name: str, data: list[dict]):
     try:
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.info(f"💾 Backup written: {filename}")
+        logger.info(f"Runner: Backup written: {filename}")
     except Exception as e:
-        logger.error(f"❌ Failed to write backup for {site_name}: {e}")
+        logger.error(f"Runner: Failed to write backup for {site_name}: {e}")
 
 def get_scraper_instance(class_name: str, config: dict):
     try:
@@ -47,12 +47,16 @@ def get_scraper_instance(class_name: str, config: dict):
         scraper_class = getattr(module, class_name)
         return scraper_class(config)
     except (ModuleNotFoundError, AttributeError) as e:
-        logger.warning(f"Could not find scraper '{class_name}', falling back to GenericOpportunityScraper: {e}")
-        from app.scrapers.freshartsscraper import GenericOpportunityScraper
-        return GenericOpportunityScraper(config)
+        logger.warning(f"Runner: Could not find scraper '{class_name}', falling back to GenericOpportunityScraper: {e}")
+        try:
+            from app.scrapers.genericscraper import GenericScraper  
+            return GenericScraper(config)  
+        except Exception as ge:
+            logger.error(f"Runner: GenericScraper fallback also failed: {ge}")
+            return None
 
 def scrape_site(site_name: str, site_config: dict):
-    logger.info(f"Thread started for site: {site_name}")
+    logger.info(f"Runner: Thread started for site: {site_name}")
     with SessionLocal() as db:
         for attempt in range(1, MAX_RETRIES + 1):
             try:
@@ -60,17 +64,17 @@ def scrape_site(site_name: str, site_config: dict):
                 scraper = get_scraper_instance(class_name, site_config)
                 opportunities = scraper.scrape()
 
-                logger.info(f"🧹 Scraped {len(opportunities)} opportunities from '{site_name}'")
+                logger.info(f"Runner: Scraped {len(opportunities)} opportunities from '{site_name}'")
 
                 saved = save_opportunities(opportunities, db, source=site_config["url"])
-                logger.info(f"✅ Saved {saved} new unique entries from '{site_name}'")
+                logger.info(f"Runner: Saved {saved} new unique entries from '{site_name}'")
 
                 write_backup(site_name, opportunities)
                 break
             except Exception as e:
-                logger.warning(f"⚠️ Attempt {attempt}/{MAX_RETRIES} failed for '{site_name}': {e}")
+                logger.warning(f"Runner: Attempt {attempt}/{MAX_RETRIES} failed for '{site_name}': {e}")
                 if attempt == MAX_RETRIES:
-                    logger.error(f"❌ All retries failed for '{site_name}'", exc_info=True)
+                    logger.error(f"Runner: All retries failed for '{site_name}'", exc_info=True)
 
 def scrape_and_store_all_sites_concurrently(config_map: dict):
     threads = []
@@ -100,4 +104,4 @@ if __name__ == "__main__":
 
     check_driver_pool_integrity(get_driver_pool())
     get_driver_pool().close()
-    logger.info("🛑 Scraping job complete, all resources shut down.")
+    logger.info("Runner: Scraping job complete, all resources shut down.")

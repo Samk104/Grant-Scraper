@@ -23,6 +23,7 @@ def save_opportunities(opportunities: list[dict], db: Session, source: str) -> i
             title=title or "Not Available",
             url=url or "Not Available",
             description=description or "Not Available",
+            grant_amount=opp.get("grant_amount") or "Not Available",
             tags=opp.get("tags") or "Not Available",
             deadline=opp.get("deadline") or "Not Available",
             email=opp.get("email") or "Not Available",
@@ -38,7 +39,7 @@ def save_opportunities(opportunities: list[dict], db: Session, source: str) -> i
             new_count += 1
         except IntegrityError as e:
             db.rollback()
-            logger.info(f"⏭️ Skipped duplicate: '{title}' from '{source}' due to integrity error.")
+            logger.info(f"Skipped duplicate: '{title}' from '{source}' due to integrity error.")
             continue
 
     return new_count
