@@ -11,6 +11,7 @@ import json
 from app.utils.driver_pool import check_driver_pool_integrity, init_driver_pool, get_driver_pool
 from app.db import init_db, SessionLocal
 from app.db.save_opportunities import save_opportunities
+from app.utils.driver_pool import borrow_driver
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logging_config import setup_logging
@@ -57,24 +58,29 @@ def get_scraper_instance(class_name: str, config: dict):
 
 def scrape_site(site_name: str, site_config: dict):
     logger.info(f"Runner: Thread started for site: {site_name}")
-    with SessionLocal() as db:
-        for attempt in range(1, MAX_RETRIES + 1):
-            try:
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            with borrow_driver() as driver:
                 class_name = site_config.get("scraper_class", "GenericOpportunityScraper")
                 scraper = get_scraper_instance(class_name, site_config)
-                opportunities = scraper.scrape()
-
+            
+                
+                opportunities = scraper.scrape(driver)
                 logger.info(f"Runner: Scraped {len(opportunities)} opportunities from '{site_name}'")
-
-                saved = save_opportunities(opportunities, db, source=site_config["url"])
-                logger.info(f"Runner: Saved {saved} new unique entries from '{site_name}'")
+                
+                with SessionLocal() as db:
+                    saved = save_opportunities(opportunities, db, source=site_config["url"])
+                    logger.info(f"Runner: Saved {saved} new unique entries from '{site_name}'")
 
                 write_backup(site_name, opportunities)
-                break
-            except Exception as e:
-                logger.warning(f"Runner: Attempt {attempt}/{MAX_RETRIES} failed for '{site_name}': {e}")
-                if attempt == MAX_RETRIES:
-                    logger.error(f"Runner: All retries failed for '{site_name}'", exc_info=True)
+            break
+        except Exception as e:
+            logger.warning(f"Runner: Attempt {attempt}/{MAX_RETRIES} failed for '{site_name}': {e}")
+            if attempt == MAX_RETRIES:
+                logger.error(f"Runner: All retries failed for '{site_name}'", exc_info=True)
+            else:
+                time.sleep(min(3, attempt))
+        
 
 def scrape_and_store_all_sites_concurrently(config_map: dict):
     threads = []

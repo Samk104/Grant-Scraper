@@ -58,3 +58,8 @@ docker-compose.override.yml
 .idea/
 *.sublime*
 .DS_Store
+
+# ------------------------
+# vector store
+# ------------------------
+vector_store/

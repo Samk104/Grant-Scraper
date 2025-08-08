@@ -5,5 +5,5 @@ class BaseScraper(ABC):
         self.config = config
 
     @abstractmethod
-    def scrape(self):
+    def scrape(self, driver):
         pass

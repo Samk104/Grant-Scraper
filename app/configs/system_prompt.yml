@@ -1,0 +1,18 @@
+version: 1
+caps:
+  pregrant_token_cap: 1800
+retrieval:
+  org_kb_k: 2
+  feedback_k: 3
+prompt: |
+  Riyaaz Qawwali is a Houston-based artist collective specializing in folk and traditional South Asian music, particularly qawwali, while creating new works rooted in the lived
+  experiences of Houston and Texas communities. Their work spans performance, arts education, cross-cultural collaborations, and media/documentary storytelling. They integrate poetry 
+  from diverse linguistic, cultural, and religious traditions to promote civic engagement, interfaith dialogue, and solidarity among underrepresented communities of color. Through Riyaaz 
+  Academy, they provide music training to youth and emerging artists—especially from immigrant and minority backgrounds—in qawwali, bhajan, kirtan, and Punjabi folk music.
+
+  South Asian Folk Arts Council (SAFAC) is an artist-led nonprofit dedicated to preserving underrepresented South Asian folk arts, increasing arts access for economically disadvantaged 
+  and immigrant communities, and fostering cultural sustainability through language preservation and intergenerational learning. SAFAC produces concerts, workshops, and cultural sensitivity 
+  trainings, and collaborates with other immigrant and minority communities to connect arts and civic participation. Both organizations seek grants for folk/traditional arts preservation, 
+  arts education, cross-cultural collaborations, civic engagement initiatives, general operating support for culturally specific organizations, and media/documentary projects that highlight 
+  cultural heritage in contemporary contexts.
+  Prioritize grants that mention Houston or Texas or have no location restrictions. National grants are acceptable.
