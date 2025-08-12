@@ -4,17 +4,17 @@ from sqlalchemy import or_
 from app.db.update_opportunity import update_opportunity
 from app.db.models import Opportunity
 from app.db.database import SessionLocal
+from app.feedback.retrieval import retrieve_feedback_examples
 from app.utils.llm.llm_client import LLMClient
 import logging
+from app.utils.rag.config import get_prompt_text, get_retrieval_knobs
+from app.utils.rag.keyword_matcher import match_keywords
+from app.org_kb.retrieval import retrieve_org_context
+
 
 logger = logging.getLogger(__name__)
 llm_client = LLMClient()
 
-context = {
-    "mission": "Riyaaz Qawwali’s mission is to expose qawwali to new audiences, while still paying homage to traditional qawwali that has been in existence for 700+ years. The ensemble wants to expand the reach of the genre to new stages and people of other faiths and traditions. The founding members of Riyaaz Qawwali chose the qawwali genre of music because it houses unique musical elements in its repertoire that are not found in any other form of South Asian music. Riyaaz Qawwali combines this with poetry from famous South Asian poets of multiple linguistic and religious backgrounds to create a universal message of oneness along with filmmaking in same and similar generes for storytelling. Riyaaz Qawwali through Riyaaz Academy aims to provide training and education in the art of music to the next generation of musicians and artists. Riyaaz Academy aims to provide a platform for young artists to learn and perform qawwali music. So coaching and training communities of color specially in music is also a part of the mission.",
-    "keywords": ["Arts", "Visual Arts", "Texas", "Film Making", "Music", "Houston", "Qawwali", "South Asian", "Cultural Heritage", "Community Engagement"],
-    "feedback": "Prioritize grants that mention Houston or Texas or have no location restrictions."
-}
 
 def build_grant_text(opportunity: Opportunity) -> str:
     parts = [opportunity.title.strip()]
@@ -33,12 +33,27 @@ def build_grant_text(opportunity: Opportunity) -> str:
 
 
 
-
-
 def process_single_grant(opportunity: Opportunity) -> tuple | None:
     try:
         text = build_grant_text(opportunity)
-        llm_info = llm_client.analyze_grant(text, context)
+        
+        mission = get_prompt_text()
+        knobs = get_retrieval_knobs()
+        feedback_k = int(knobs.get("feedback_k", 3))
+        matched_keywords = match_keywords(text, max_terms=4)
+        org_context = retrieve_org_context(text) 
+        
+        with SessionLocal() as db:
+            examples = retrieve_feedback_examples(db, text, k=feedback_k)
+        
+        llm_info = llm_client.analyze_grant(
+            grant_text=text,
+            mission=mission,
+            matched_keywords=matched_keywords,
+            feedback_examples=examples,
+            org_context=org_context,   
+        )
+        
         update_opportunity(opportunity.unique_key, {
                 "llm_info": llm_info,
                 "is_relevant": llm_info.get("is_relevant"),

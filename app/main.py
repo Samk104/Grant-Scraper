@@ -12,6 +12,9 @@ from app.utils.driver_pool import check_driver_pool_integrity, init_driver_pool,
 from app.db import init_db, SessionLocal
 from app.db.save_opportunities import save_opportunities
 from app.utils.driver_pool import borrow_driver
+from app.utils.rag.keyword_matcher import validate_synonyms
+from app.utils.rag.config import load_system_prompt
+from app.utils.rag.config import get_keywords
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logging_config import setup_logging
@@ -21,6 +24,23 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 MAX_THREADS = 6
+
+
+def startup_checks():
+    load_system_prompt()
+    invalid = validate_synonyms(strict=False)
+    if invalid:
+        logger.warning(f"Found invalid synonyms not in keywords.core: {invalid}")
+    
+    core_keywords = get_keywords().get("core", [])
+
+    if not core_keywords:
+        raise ValueError("keywords.core is empty — please define at least one keyword.")
+
+    if not all(isinstance(k, str) and k.strip() for k in core_keywords):
+        raise ValueError("keywords.core must contain only non-empty strings.")
+
+    logger.info(f"Startup check: {len(core_keywords)} core keywords loaded.")
 
 def load_config():
     config_path = os.path.join(os.getcwd(), "app", "configs", "sites_config.yml")
@@ -99,6 +119,12 @@ def scrape_and_store_all_sites_concurrently(config_map: dict):
         t.join()
 
 if __name__ == "__main__":
+    try:
+        startup_checks()
+    except Exception as e:
+        logger.error("Startup checks failed: %s", e, exc_info=True)
+        raise
+    
     time.sleep(10)
     init_db()
     init_driver_pool()

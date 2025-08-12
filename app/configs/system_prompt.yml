@@ -4,6 +4,93 @@ caps:
 retrieval:
   org_kb_k: 2
   feedback_k: 3
+keywords:
+  core:
+    - Arts
+    - Visual Arts
+    - Texas
+    - Film Making
+    - Music
+    - Houston
+    - Qawwali
+    - South Asian
+    - Cultural Heritage
+    - Community Engagement
+  expanded:
+    - Music grant
+    - Folk arts grant
+    - Ethnomusicology
+    - Qawwali music funding
+    - Devotional music
+    - Traditional music preservation
+    - Cultural heritage arts
+    - South Asian music
+    - Bhakti/Sufi arts
+    - Musical storytelling
+    - Community-based music
+    - Non-classical arts
+    - Immigrant music traditions
+    - Artist-led collectives
+    - Artistic collaboration grant
+    - Intercultural music
+    - Arts and culture grant
+    - Religious pluralism in arts
+    - Music and identity
+    - Civic engagement grant
+    - Voter mobilization funding
+    - Get out the vote (GOTV)
+    - Cultural organizing
+    - Electoral justice
+    - Art as civic tool
+    - Voter education
+    - Ballot access initiatives
+    - BIPOC voter turnout
+    - AAPI civic engagement
+    - Organizing through music
+    - Arts for democracy
+    - Policy-focused art
+    - Power-building funding
+    - Grassroots cultural strategy
+    - Narrative change grant
+    - Cultural strategy
+    - Storytelling for justice
+    - Cross-racial solidarity
+    - Interfaith dialogue
+    - Bridge-building funding
+    - Desi community building
+    - Anti-xenophobia campaigns
+    - Youth-led art initiatives
+    - Community resilience through arts
+    - Trauma-informed arts funding
+    - Diaspora-led organizing
+    - Intergenerational storytelling
+    - Social cohesion through culture
+    - Healing through music
+    - Artist capacity-building grant
+    - Professional development for artists
+    - Artist residency opportunities
+    - Peer learning cohort
+    - Request for Proposals (RFP)
+    - Open call for artists
+    - Civic artist fellowship
+    - Nonprofit capacity support
+    - Cross-sector artist collaboration
+    - Artist-led community research
+    - Workshop funding
+    - Racial equity learning labs
+    - Artist-led convenings
+    - General operating support
+    - Unrestricted arts grant
+    - Infrastructure funding
+    - Organizational resilience grant
+    - Fiscal sponsorship eligible
+    - Capacity building for small orgs
+    - Systems-change funding
+    - Cultural sustainability
+    - Funding for BIPOC orgs
+    - Funding for emerging organizations
+    - Multi-year arts support
+    - Intersectional grantmaking
 prompt: |
   Riyaaz Qawwali is a Houston-based artist collective specializing in folk and traditional South Asian music, particularly qawwali, while creating new works rooted in the lived
   experiences of Houston and Texas communities. Their work spans performance, arts education, cross-cultural collaborations, and media/documentary storytelling. They integrate poetry 
