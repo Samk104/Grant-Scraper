@@ -1,42 +1,59 @@
 from __future__ import annotations
 from typing import List, Dict, Any
-from app.org_kb.loader import load_org_kb
-from app.utils.rag.keyword_matcher import match_keywords, _norm
+import os, json
+import faiss
+from app.utils.rag.embed import embed
 from app.utils.rag.config import get_retrieval_knobs
 
-def _score(snippet: str, q_terms: set[str], priority: int) -> float:
-    s = _norm(snippet)
-    score = 0.0
-    for t in q_terms:
-        if t.lower() in s:
-            score += 1.0
-    score += max(0.0, 0.3 - (len(s) / 4000.0))
-    score += (max(0, min(priority, 10)) * 0.15)
-    return score
+STORE = "vector_store"
+ORGKB_INDEX = os.path.join(STORE, "orgkb.faiss")
+ORGKB_IDS   = os.path.join(STORE, "orgkb_ids.json")
 
 def retrieve_org_context(grant_text: str, k: int | None = None) -> List[Dict[str, Any]]:
-    kb = load_org_kb()
+    # Get retrieval limit (defaults to 2 unless overridden)
     knobs = get_retrieval_knobs() or {}
     topk = int(knobs.get("org_kb_k", 2)) if k is None else int(k)
 
-    q_terms = set(match_keywords(grant_text, max_terms=10))
+    # Bail if index or metadata file missing
+    if not os.path.exists(ORGKB_INDEX) or not os.path.exists(ORGKB_IDS):
+        return []
 
-    scored: List[tuple[float, Dict[str, Any]]] = []
-    for row in kb:
-        sc = _score(row["text"], q_terms, row["priority"])
-        if sc > 0:
-            scored.append((sc, row))
+    # Load FAISS index + metadata
+    index = faiss.read_index(ORGKB_INDEX)
+    meta_list: list[dict] = json.load(open(ORGKB_IDS, "r", encoding="utf-8")) or []
+    if not meta_list:
+        return []
 
-    scored.sort(key=lambda x: x[0], reverse=True)
+    # Map faiss_id → meta row
+    # Your builder writes: {"id", "file", "doc_id", "priority", "chunk", "text"}
+    idmap: dict[int, dict] = {int(m["id"]): m for m in meta_list if "id" in m}
+
+    # Embed query text and search top-k
+    qv = embed([grant_text])  # shape (1, d)
+    scores, ids = index.search(qv, topk)
 
     results: List[Dict[str, Any]] = []
-    for sc, row in scored[:topk]:
-        pid = f"{row['doc_id']}#{row['line']}"
+    # Zip scores and ids to preserve alignment and skip -1 results
+    for score, fid in zip(scores[0], ids[0]):
+        fid = int(fid)
+        if fid == -1:
+            continue
+
+        m = idmap.get(fid)
+        if not m:
+            continue
+
         results.append({
-            "id": pid,
-            "priority": row["priority"],
-            "snippet": row["text"],
-            "doc": row["doc"],
-            "score": float(sc),
+            # Build a stable readable ID: doc_id#chunk
+            "id": f"{m.get('doc_id', 'orgkb')}#{m.get('chunk', 0)}",
+            # Priority now always present from your rebuild script
+            "priority": int(m.get("priority", 0)),
+            # Short preview snippet (first 200 chars from builder)
+            "snippet": m.get("text", ""),
+            # Original file name for debugging
+            "doc": m.get("file"),
+            # FAISS similarity score
+            "score": float(score),
         })
+
     return results

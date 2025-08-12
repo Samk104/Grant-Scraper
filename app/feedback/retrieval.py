@@ -1,10 +1,15 @@
 from __future__ import annotations
 from typing import List, Dict, Any
+import os, json
+import faiss
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
 from app.db.models import Opportunity
-from app.utils.rag.keyword_matcher import match_keywords
-from app.utils.rag.text_utils import clean_text  # if you don’t have this yet, replace with a simple strip()
+from app.utils.rag.embed import embed
+from app.utils.rag.text_utils import clean_text  # optional for cleaner snippets
+
+STORE = "vector_store"
+FEEDBACK_INDEX = os.path.join(STORE, "feedback.faiss")
+FEEDBACK_IDS   = os.path.join(STORE, "feedback_ids.json")
 
 def _merge_labels(llm_info: Dict[str, Any] | None, corrections: Dict[str, Any] | None) -> Dict[str, Any]:
     base = (llm_info or {}).copy()
@@ -13,53 +18,70 @@ def _merge_labels(llm_info: Dict[str, Any] | None, corrections: Dict[str, Any] |
     keep = {"is_relevant","location_applicable","award_amount","deadline","explanation"}
     return {k: base.get(k) for k in keep}
 
-def _score_example(query_terms: set[str], example_text: str, scraped_at: str | None) -> float:
-    ex_terms = set(match_keywords(example_text or "", max_terms=8))
-    overlap = len(query_terms & ex_terms)
-    recency_bonus = 0.0
-    try:
-        if scraped_at:
-            days = max(0, (datetime.now(timezone.utc) - datetime.fromisoformat(scraped_at)).days)
-            recency_bonus = max(0.0, 0.9 - min(days, 90) * (0.9 / 90.0))
-    except Exception:
-        pass
-    return overlap + recency_bonus
+def _load_index_and_meta():
+    # Bail early if no index
+    if not os.path.exists(FEEDBACK_INDEX):
+        return None, {}
+    index = faiss.read_index(FEEDBACK_INDEX)
 
+    # Load meta and map faiss_id → unique_key + url
+    # Builder writes: {"faiss_id", "unique_key", "url"}
+    meta_list: list[dict] = []
+    if os.path.exists(FEEDBACK_IDS):
+        meta_list = json.load(open(FEEDBACK_IDS, "r", encoding="utf-8")) or []
+
+    idmap: dict[int, dict] = {
+        int(m["faiss_id"]): {
+            "unique_key": m["unique_key"],
+            "url": m.get("url")
+        }
+        for m in meta_list
+        if "faiss_id" in m and "unique_key" in m
+    }
+    return index, idmap
 
 def retrieve_feedback_examples(db: Session, grant_text: str, k: int = 3) -> List[Dict[str, Any]]:
-    """
-    Pull top-k user_feedback examples by simple keyword overlap + recency.
-    No embeddings yet; fast and dependency-free.
-    """
-    q = (
-        db.query(Opportunity)
-          .filter(Opportunity.user_feedback == True)
-          .filter(Opportunity.description.isnot(None))
-          .order_by(Opportunity.id.desc())   # newest first fallback
-          .limit(200)                        # cap scan size
-    )
-    query_terms = set(match_keywords(grant_text, max_terms=8))
-    scored: list[tuple[float, Opportunity]] = []
+    index, idmap = _load_index_and_meta()
+    if index is None or not idmap:
+        return []
 
-    for opp in q:
-        desc = (opp.description or "").strip()
-        s = _score_example(query_terms, desc, getattr(opp, "scraped_at", None))
-        scored.append((s, opp))
+    # Embed query and search top-k
+    qv = embed([grant_text])  # (1, d)
+    scores, ids = index.search(qv, k)
 
-    scored.sort(key=lambda x: x[0], reverse=True)
+    out: List[Dict[str, Any]] = []
+    for faiss_id, score in zip(ids[0], scores[0]):
+        fid = int(faiss_id)
+        if fid == -1:
+            continue
 
-    results: List[Dict[str, Any]] = []
-    for s, opp in scored[:k]:
+        meta = idmap.get(fid)
+        if not meta:
+            continue
+
+        # Lookup opportunity by unique_key from meta
+        opp = db.query(Opportunity).filter(Opportunity.unique_key == meta["unique_key"]).first()
+        if not opp:
+            continue
+
+        # Merge LLM output with any user corrections
         ufi = opp.user_feedback_info or {}
         final_labels = _merge_labels(opp.llm_info, ufi.get("corrections"))
-        snippet = (desc[:900] + "…") if len(desc) > 900 else desc
-        results.append({
+
+        # Clean + trim snippet for prompt
+        desc = clean_text(opp.description or "")
+        snippet = desc[:900] + ("…" if len(desc) > 900 else "")
+
+        out.append({
             "id": opp.id,
-            "url": opp.url,
-            "score": float(s),
+            "unique_key": opp.unique_key,
+            "url": meta.get("url") or opp.url,
+            "score": float(score),
             "snippet": snippet,
             "final_labels": final_labels,
             "rationale": ufi.get("rationale"),
             "timestamp": ufi.get("timestamp"),
         })
-    return results
+
+    # Enforce cap in case caller forgets
+    return out[:k]

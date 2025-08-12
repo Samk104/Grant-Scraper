@@ -7,6 +7,8 @@ import json
 import os
 from datetime import date
 
+from app.utils.rag.config import get_caps
+
 
 
 logger = logging.getLogger(__name__)
@@ -56,6 +58,37 @@ class LLMClient:
 
     def _build_prompt(self, grant_text: str, mission: str, matched_keywords: List[str], feedback_examples: Optional[List[dict]] = None, org_context: Optional[List[dict]] = None) -> str:
         today = date.today().isoformat()
+        caps = get_caps()
+        pre_cap = int(caps.get("pregrant_token_cap", 1800))
+        
+
+        matched_keywords = (matched_keywords or [])[:4]
+        if feedback_examples:
+            feedback_examples = feedback_examples[:3]
+        if org_context:
+            org_context = org_context[:2]
+            
+        def approx_tokens(s: str) -> int:
+            return max(1, int(len(s) / 4))
+
+        static_parts = []
+        static_parts.append(mission.strip())
+        static_parts.append("Matched keywords: " + ", ".join(matched_keywords) if matched_keywords else "")
+        if org_context:
+            static_parts.append("Org Policy Context:\n" + "\n".join(f"- {o['id']}: {o['snippet']}" for o in org_context))
+        if feedback_examples:
+            static_parts.append("Retrieved Feedback Examples:\n" + "\n".join(f"- {ex.get('url','')}" for ex in feedback_examples))
+
+        static_tokens = sum(approx_tokens(p) for p in static_parts)
+        grant_budget_tokens = max(200, pre_cap - static_tokens)
+        grant_budget_chars = grant_budget_tokens * 4 - 100 
+        if len(grant_text) > grant_budget_chars:
+            grant_text = grant_text[:grant_budget_chars] + "…"
+
+        logger.info(
+            "Prompt size est: static=%d tokens, grant=%d tokens, total=%d tokens",
+            static_tokens, approx_tokens(grant_text), static_tokens + approx_tokens(grant_text))
+        
         kw_line = f"Matched keywords: {', '.join(matched_keywords)}" if matched_keywords else "Matched keywords: (none)"
         
         examples_section = ""
@@ -76,6 +109,8 @@ class LLMClient:
                 kb_lines.append(f"- [{row.get('doc','')}] (p{row.get('priority',0)}): {row.get('snippet','')[:240]}")
             if kb_lines:
                 org_section = "Org Policy Context:\n" + "\n".join(kb_lines)
+        
+       
 
 
         prompt = textwrap.dedent(f"""
