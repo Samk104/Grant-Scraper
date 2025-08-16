@@ -81,6 +81,43 @@ services:
     ports:
       - "7900:7900"
   
+  rq_worker:
+    build: .
+    container_name: rq_worker
+    command: python app/workers/rq_worker.py
+    restart: unless-stopped
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL}
+      # dev on Mac: leave LLM_BASE_URL unset to use http://host.docker.internal:11434
+      - SELENIUM_REMOTE_URL=http://selenium-hub:4444/wd/hub
+    volumes:
+      - .:/app
+    working_dir: /app
+
+  rq_scheduler:
+    build: .
+    container_name: scheduler_runner
+    command: python app/workers/scheduler_runner.py
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL}
+      # dev on Mac: leave LLM_BASE_URL unset to use http://host.docker.internal:11434
+    volumes:
+      - .:/app
+    working_dir: /app
+
+  
 
 volumes:
   pgdata:

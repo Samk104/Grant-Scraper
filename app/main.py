@@ -26,6 +26,42 @@ MAX_RETRIES = 3
 MAX_THREADS = 6
 
 
+def run_all_scrapers(config_path: str | None = None) -> dict:
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    try:
+        startup_checks()
+    except Exception as e:
+        logger.error("Startup checks failed: %s", e, exc_info=True)
+        raise
+
+    time.sleep(10)
+
+    init_db()
+    init_driver_pool()
+
+    try:
+        if config_path:
+            with open(config_path, "r") as f:
+                config_data = yaml.safe_load(f)
+        else:
+            config_data = load_config()
+
+        config_map = build_config_map(config_data)
+        scrape_and_store_all_sites_concurrently(config_map)
+
+        return {"status": "ok", "sites": len(config_map)}
+    finally:
+        try:
+            check_driver_pool_integrity(get_driver_pool())
+            get_driver_pool().close()
+        except Exception:
+            logger.warning("Driver pool close encountered an issue.", exc_info=True)
+        logger.info("Runner: Scraping job complete, all resources shut down.")
+
+
+
+
 def startup_checks():
     load_system_prompt()
     invalid = validate_synonyms(strict=False)

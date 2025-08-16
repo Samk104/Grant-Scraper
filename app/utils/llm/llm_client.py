@@ -1,4 +1,5 @@
 import logging
+import re
 import textwrap
 import time
 from typing import List, Optional
@@ -16,10 +17,121 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     
     def __init__(self, base_url=None, model="mistral", max_retries=3):
-        self.base_url = base_url or os.getenv("LLM_BASE_URL", "http://host.docker.internal:11434") # For docker: http://ollama_llm:11434
+        self.base_url = base_url or os.getenv("LLM_BASE_URL", "http://host.docker.internal:11434") 
         self.model = model
         self.max_retries = max_retries
     
+
+    def _strip_json_comments_and_crop(self, s: str) -> str:
+        
+        fence = re.search(r"```(?:json|javascript|js)?\s*([\s\S]*?)\s*```", s, flags=re.IGNORECASE)
+        if fence:
+            s = fence.group(1)
+        
+        out = []
+        i = 0
+        in_string = False
+        escape = False
+        while i < len(s):
+            ch = s[i]
+            if escape:
+                out.append(ch)
+                escape = False
+                i += 1
+                continue
+            if in_string:
+                if ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                out.append(ch)
+                i += 1
+                continue
+            
+            if ch == '"':
+                in_string = True
+                out.append(ch)
+                i += 1
+                continue
+            
+            if ch == '/' and i + 1 < len(s) and s[i+1] == '/':
+                i += 2
+                while i < len(s) and s[i] not in '\r\n':
+                    i += 1
+                continue
+
+            if ch == '/' and i + 1 < len(s) and s[i+1] == '*':
+                i += 2
+                while i + 1 < len(s) and not (s[i] == '*' and s[i+1] == '/'):
+                    i += 1
+                i = i + 2 if i + 1 < len(s) else i
+                continue
+
+            out.append(ch)
+            i += 1
+
+        s = ''.join(out).strip()
+
+        
+        in_string = False
+        escape = False
+        depth = 0
+        start = None
+        end = None
+        opener = None
+        closer = None
+
+        for idx, ch in enumerate(s):
+            if escape:
+                escape = False
+                continue
+            if in_string:
+                if ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+                continue
+            if ch in '{[':
+                start = idx
+                opener = ch
+                closer = '}' if ch == '{' else ']'
+                depth = 1
+                break
+
+        if start is None:
+            
+            return s
+
+        for idx in range(start + 1, len(s)):
+            ch = s[idx]
+            if escape:
+                escape = False
+                continue
+            if in_string:
+                if ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+                continue
+            if ch == opener:
+                depth += 1
+            elif ch == closer:
+                depth -= 1
+                if depth == 0:
+                    end = idx
+                    break
+
+        if end is not None:
+            return s[start:end+1].strip()
+        return s.strip()
+
+
 
 
     def analyze_grant(self, grant_text: str, mission: str, matched_keywords: list[str], feedback_examples: list[dict] | None = None,  org_context: list[dict] | None = None) -> dict:
@@ -42,7 +154,8 @@ class LLMClient:
                
                 raw = response.json()
                 try:
-                    return json.loads(raw["response"])
+                    clean_json = self._strip_json_comments_and_crop(raw.get("response", ""))
+                    return json.loads(clean_json)
                 except (json.JSONDecodeError, KeyError) as parse_err:
                     raise ValueError(f"Invalid or malformed JSON from LLM:\n{raw.get('response', '')}") from parse_err
 
@@ -133,7 +246,8 @@ class LLMClient:
                         \"\"\"
 
                     Your tasks:
-                     1. Determine if the grant is relevant for the organization.
+                     1. Determine if the grant is relevant for the organization. Please pay close attention to the title of the grant that can also reveal the details or location.
+                     Also, pay close attention to the description and deadline. 
 
                     Important exclusions:
                     - If the opportunity is a residency (e.g., artist residency), set is_relevant to false and explain that it is a residency.
@@ -192,7 +306,7 @@ class LLMClient:
                     "possibility": "Fair"
                     }}
 
-                    Respond only with valid JSON and make sure to return all JSON values cleanly. Do not double-quote or single-quote inside string values. Do not hallucinate or fabricate information. Make sure the JSON is valid and contains all required fields.
+                    Respond only with valid JSON and make sure to return all JSON values cleanly. Do not double-quote or single-quote inside string values. Also strictly NO COMMENTS (like // or /* ... */) inside the JSON.
                     Also make sure you make very sincere attempt to extract the funding amount, deadline, and relevance of the grant based on the provided context. Leave fields null if data is unavailable. 
                     Be especially careful to avoid misinterpreting residencies or courses as grants. Photography grants are not relevant. Visual arts grants are not relevant unless they specifically mention filmmaking or video production. Film making grants are relevant and even more relevant if targeted towards artists or musicians or Asians/Southeast Asians.
                     """.strip())

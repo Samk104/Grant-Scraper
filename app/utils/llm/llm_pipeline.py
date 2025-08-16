@@ -54,10 +54,13 @@ def process_single_grant(opportunity: Opportunity) -> tuple | None:
             org_context=org_context,   
         )
         
-        update_opportunity(opportunity.unique_key, {
-                "llm_info": llm_info,
-                "is_relevant": llm_info.get("is_relevant"),
-            })
+        with SessionLocal() as db, db.begin():
+            ok = update_opportunity(db, opportunity.unique_key, {
+                    "llm_info": llm_info,
+                    "is_relevant": llm_info.get("is_relevant"),
+                })
+            if not ok:
+                raise RuntimeError("DB update failed")
 
         return (opportunity.unique_key, True)
     except Exception as e:

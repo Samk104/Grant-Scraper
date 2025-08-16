@@ -72,7 +72,7 @@ def rebuild_feedback():
     db: Session = SessionLocal()
     try:
         rows = (db.query(Opportunity)
-                  .filter(Opportunity.user_feedback == True)
+                  .filter(Opportunity.user_feedback.isnot(None))
                   .filter(Opportunity.description.isnot(None))
                   .all())
     finally:

@@ -5,16 +5,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def update_opportunity(unique_key: str, update_fields: dict) -> bool:
-    db: Session = SessionLocal()
+def update_opportunity(db: Session, unique_key: str, update_fields: dict) -> bool:
     try:
-        db.query(Opportunity).filter(Opportunity.unique_key == unique_key).update(update_fields)
-        db.commit()
-        logger.info(f"Updated opportunity {unique_key} with fields: {update_fields}")
-        return True
+        row = db.query(Opportunity).filter(Opportunity.unique_key == unique_key).update(update_fields)
+        logger.info(f"Updated opportunity {unique_key} with fields: {update_fields} (row={row})")
+        return row > 0
     except Exception as e:
-        db.rollback()
         logger.error(f"DB update failed for {unique_key}: {e}")
         return False
-    finally:
-        db.close()
