@@ -51,6 +51,8 @@ confection==0.1.5
     # via
     #   thinc
     #   weasel
+croniter==6.0.0
+    # via rq
 crontab==1.0.5
     # via rq-scheduler
 cryptography==43.0.3
@@ -204,12 +206,15 @@ pytest==8.4.1
 python-dateutil==2.9.0.post0
     # via
     #   -r requirements.in
+    #   croniter
     #   freezegun
     #   rq-scheduler
 python-dotenv==1.1.0
     # via
     #   -r requirements.in
     #   webdriver-manager
+pytz==2025.2
+    # via croniter
 pyyaml==6.0
     # via
     #   -r requirements.in
@@ -229,11 +234,11 @@ requests==2.32.3
     #   transformers
     #   weasel
     #   webdriver-manager
-rq==1.16.1
+rq==2.5.0
     # via
     #   -r requirements.in
     #   rq-scheduler
-rq-scheduler==0.13.1
+rq-scheduler==0.14.0
     # via -r requirements.in
 safetensors==0.6.2
     # via transformers

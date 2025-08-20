@@ -1,0 +1,3 @@
+FROM python:3.11-slim
+RUN pip install --no-cache-dir rq==2.5.0 rq-scheduler==0.14.0
+CMD ["rqscheduler", "--url", "redis://redis:6379/0", "--interval", "30"]
