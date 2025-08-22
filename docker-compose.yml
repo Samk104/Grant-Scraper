@@ -139,6 +139,34 @@ services:
     volumes:
       - .:/app
     working_dir: /app
+  
+
+  migrate:
+    build: .
+    depends_on:
+      db:
+        condition: service_started
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    command: alembic upgrade head
+    restart: "no"
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - USER_CODE=${USER_CODE}
+      - ADMIN_CODE=${ADMIN_CODE}
+      - GUEST_CODE=${GUEST_CODE}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:4200}
+    ports:
+      - "8000:8000"
+    command: uvicorn app.api_app:app --host 0.0.0.0 --port 8000
 
 
   

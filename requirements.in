@@ -1,3 +1,4 @@
+alembic
 attrs==25.3.0
 beautifulsoup4==4.12.3
 blinker==1.9.0
@@ -7,6 +8,7 @@ charset-normalizer==3.4.1
 click==8.1.8
 cryptography==43.0.3
 faiss-cpu
+fastapi
 Flask==3.0.3
 h11==0.14.0
 idna==3.10
@@ -27,6 +29,7 @@ Pytest
 pytesseract
 python-dateutil
 python-dotenv==1.1.0
+python-multipart
 pyyaml==6.0
 requests==2.32.3
 rq==2.5.0
@@ -47,6 +50,7 @@ trio==0.27.0
 trio-websocket==0.11.1
 urllib3==1.26.18
 urllib3-secure-extra==0.1.0
+uvicorn[standard]
 webdriver-manager==4.0.2
 Werkzeug==3.0.4
 word2number
