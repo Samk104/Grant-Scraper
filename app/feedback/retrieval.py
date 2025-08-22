@@ -11,12 +11,43 @@ STORE = "vector_store"
 FEEDBACK_INDEX = os.path.join(STORE, "feedback.faiss")
 FEEDBACK_IDS   = os.path.join(STORE, "feedback_ids.json")
 
-def _merge_labels(llm_info: Dict[str, Any] | None, corrections: Dict[str, Any] | None) -> Dict[str, Any]:
-    base = (llm_info or {}).copy()
-    for k, v in (corrections or {}).items():
-        base[k] = v
-    keep = {"is_relevant","location_applicable","award_amount","deadline","explanation"}
-    return {k: base.get(k) for k in keep}
+def _compose_final_labels(opp: Opportunity, corrections: Dict[str, Any] | None) -> Dict[str, Any]:
+    llm_info: Dict[str, Any] = (opp.llm_info or {})
+    corr: Dict[str, Any] = (corrections or {})
+
+    final_is_relevant = opp.is_relevant
+
+    if "location_applicable" in corr:
+        final_location_applicable = corr.get("location_applicable")
+    else:
+        final_location_applicable = llm_info.get("location_applicable")
+
+   
+    final_grant_amount = None
+    grant_amount = getattr(opp, "grant_amount", None)
+    if grant_amount and grant_amount != "Not Available":
+        final_grant_amount = grant_amount
+    elif "grant_amount" in corr:
+        final_grant_amount = corr.get("grant_amount")
+    else:
+        final_grant_amount = llm_info.get("grant_amount", llm_info.get("award_amount"))
+
+   
+    if "deadline" in corr:
+        final_deadline = corr.get("deadline")
+    else:
+        final_deadline = llm_info.get("deadline")
+
+    final_explanation = llm_info.get("explanation")  # optional; included if present
+
+    return {
+        "is_relevant": final_is_relevant,
+        "location_applicable": final_location_applicable,
+        "grant_amout": final_grant_amount,   # NOTE: label key intentionally spelled per request
+        "deadline": final_deadline,
+        "explanation": final_explanation,
+    }
+
 
 def _load_index_and_meta():
     
@@ -63,11 +94,13 @@ def retrieve_feedback_examples(db: Session, grant_text: str, k: int = 3) -> List
         opp = db.query(Opportunity).filter(Opportunity.unique_key == meta["unique_key"]).first()
         if not opp:
             continue
+        
+        if not getattr(opp, "user_feedback", False):
+            continue
 
         
         ufi = opp.user_feedback_info or {}
-        final_labels = _merge_labels(opp.llm_info, ufi.get("corrections"))
-
+        final_labels = _compose_final_labels(opp, ufi.get("corrections"))
         
         desc = clean_text(opp.description or "")
         snippet = desc[:900] + ("…" if len(desc) > 900 else "")

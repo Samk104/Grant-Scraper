@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 ALLOWED_CORRECTION_KEYS = {
-    "url", "grant_amount", "tags", "deadline", "email", "is_relevant"
+    "url", "grant_amount", "tags", "deadline", "email", "is_relevant", "location_applicable"
 }
 
 
@@ -37,8 +37,8 @@ def try_to_bool(v: Any) -> Optional[bool]:
     if v is None:
         return None
     s = str(v).strip().lower()
-    if s in {"True", "true","t","yes","y","1"}: return True
-    if s in {"False","false","f","no","n","0"}: return False
+    if s in {"true","t","yes","y","1"}: return True
+    if s in {"false","f","no","n","0"}: return False
     return None 
 
 def _normalize_for_columns(key: str, val: Any) -> Any:
@@ -59,9 +59,9 @@ def _normalize_for_columns(key: str, val: Any) -> Any:
 def save_feedback(
     db: Session,
     opportunity_unique_key: str,
-    user_feedback: bool, # Based on if user agrees with the LLM's assessment
     rationale: str,
     corrections: Optional[Dict[str, Any]] = None,
+    user_is_relevant: Optional[bool] = None,
 ) -> Opportunity:
     o: Opportunity | None = (
         db.query(Opportunity)
@@ -80,24 +80,30 @@ def save_feedback(
         info["corrections"] = prev
     info["timestamp"] = datetime.now(timezone.utc).isoformat()
     
+    llm_rel: Optional[bool] = None
+    try:
+        llm_rel = (o.llm_info or {}).get("is_relevant")
+    except Exception:
+        llm_rel = None
+    
     
     explicit_relevance: Optional[bool] = None
 
-    if "is_relevant" in corr:
+    if user_is_relevant is not None:
+        explicit_relevance = try_to_bool(user_is_relevant)
+        info["user_is_relevant"] = explicit_relevance
+        info["agreed_with_llm"] = None if llm_rel is None else (explicit_relevance == try_to_bool(llm_rel))
+    elif "is_relevant" in corr:
         explicit_relevance = _normalize_for_columns("is_relevant", corr["is_relevant"])
+        if explicit_relevance is not None:
+            info["user_is_relevant"] = try_to_bool(explicit_relevance)
+            info["agreed_with_llm"] = None if llm_rel is None else (try_to_bool(explicit_relevance) == try_to_bool(llm_rel))
     else:
-        if user_feedback is False:
-            base = o.is_relevant  
-            if base is None:
-                try:
-                    base = (o.llm_info or {}).get("is_relevant")
-                except Exception:
-                    base = None
-            if base is not None:
-                explicit_relevance = (not bool(base))
+        pass
+
 
     with db.begin():
-        o.user_feedback = user_feedback
+        o.user_feedback = True
         o.user_feedback_info = info
 
         for k, v in corr.items():

@@ -19,7 +19,7 @@ class Opportunity(Base):
         DateTime(timezone=True),
         nullable=False,
         index=True,
-        server_default=func.now(),               # default if you ever forget to set it
+        server_default=func.now(),               
     )
     is_relevant = Column(Boolean, nullable=True)
     is_viewed = Column(Boolean, nullable=False, default=False)
