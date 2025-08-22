@@ -1,9 +1,14 @@
 import logging
+import re
+import textwrap
 import time
+from typing import List, Optional
 import requests
 import json
 import os
 from datetime import date
+
+from app.utils.rag.config import get_caps
 
 
 
@@ -12,14 +17,125 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     
     def __init__(self, base_url=None, model="mistral", max_retries=3):
-        self.base_url = base_url or os.getenv("LLM_BASE_URL", "http://host.docker.internal:11434") # For docker: http://ollama_llm:11434
+        self.base_url = base_url or os.getenv("LLM_BASE_URL", "http://host.docker.internal:11434") 
         self.model = model
         self.max_retries = max_retries
     
 
+    def _strip_json_comments_and_crop(self, s: str) -> str:
+        
+        fence = re.search(r"```(?:json|javascript|js)?\s*([\s\S]*?)\s*```", s, flags=re.IGNORECASE)
+        if fence:
+            s = fence.group(1)
+        
+        out = []
+        i = 0
+        in_string = False
+        escape = False
+        while i < len(s):
+            ch = s[i]
+            if escape:
+                out.append(ch)
+                escape = False
+                i += 1
+                continue
+            if in_string:
+                if ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                out.append(ch)
+                i += 1
+                continue
+            
+            if ch == '"':
+                in_string = True
+                out.append(ch)
+                i += 1
+                continue
+            
+            if ch == '/' and i + 1 < len(s) and s[i+1] == '/':
+                i += 2
+                while i < len(s) and s[i] not in '\r\n':
+                    i += 1
+                continue
 
-    def analyze_grant(self, text: str, context: dict) -> dict:
-        prompt = self._build_prompt(text, context)
+            if ch == '/' and i + 1 < len(s) and s[i+1] == '*':
+                i += 2
+                while i + 1 < len(s) and not (s[i] == '*' and s[i+1] == '/'):
+                    i += 1
+                i = i + 2 if i + 1 < len(s) else i
+                continue
+
+            out.append(ch)
+            i += 1
+
+        s = ''.join(out).strip()
+
+        
+        in_string = False
+        escape = False
+        depth = 0
+        start = None
+        end = None
+        opener = None
+        closer = None
+
+        for idx, ch in enumerate(s):
+            if escape:
+                escape = False
+                continue
+            if in_string:
+                if ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+                continue
+            if ch in '{[':
+                start = idx
+                opener = ch
+                closer = '}' if ch == '{' else ']'
+                depth = 1
+                break
+
+        if start is None:
+            
+            return s
+
+        for idx in range(start + 1, len(s)):
+            ch = s[idx]
+            if escape:
+                escape = False
+                continue
+            if in_string:
+                if ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+                continue
+            if ch == opener:
+                depth += 1
+            elif ch == closer:
+                depth -= 1
+                if depth == 0:
+                    end = idx
+                    break
+
+        if end is not None:
+            return s[start:end+1].strip()
+        return s.strip()
+
+
+
+
+    def analyze_grant(self, grant_text: str, mission: str, matched_keywords: list[str], feedback_examples: list[dict] | None = None,  org_context: list[dict] | None = None) -> dict:
+        prompt = self._build_prompt(grant_text, mission, matched_keywords, feedback_examples, org_context)
         attempt = 0
 
         while attempt < self.max_retries:
@@ -38,7 +154,8 @@ class LLMClient:
                
                 raw = response.json()
                 try:
-                    return json.loads(raw["response"])
+                    clean_json = self._strip_json_comments_and_crop(raw.get("response", ""))
+                    return json.loads(clean_json)
                 except (json.JSONDecodeError, KeyError) as parse_err:
                     raise ValueError(f"Invalid or malformed JSON from LLM:\n{raw.get('response', '')}") from parse_err
 
@@ -52,32 +169,92 @@ class LLMClient:
                 time.sleep(wait_time)
 
 
-    def _build_prompt(self, grant_text: str, context: dict) -> str:
+    def _build_prompt(self, grant_text: str, mission: str, matched_keywords: List[str], feedback_examples: Optional[List[dict]] = None, org_context: Optional[List[dict]] = None) -> str:
         today = date.today().isoformat()
+        caps = get_caps()
+        pre_cap = int(caps.get("pregrant_token_cap", 1800))
+        
 
-        return f"""
-                    You are analyzing a grant opportunity. Use the following organizational context:
-                    This detail is important to determine if the grant is relevant for the organization and to extract the funding amount.
+        matched_keywords = (matched_keywords or [])[:4]
+        if feedback_examples:
+            feedback_examples = feedback_examples[:3]
+        if org_context:
+            org_context = org_context[:2]
+            
+        def approx_tokens(s: str) -> int:
+            return max(1, int(len(s) / 4))
 
-                    Mission: {context.get('mission')}
-                    Keywords: {', '.join(context.get('keywords', []))}
-                    Feedback: {context.get('feedback', 'None')}
+        static_parts = []
+        static_parts.append(mission.strip())
+        static_parts.append("Matched keywords: " + ", ".join(matched_keywords) if matched_keywords else "")
+        if org_context:
+            static_parts.append("Org Policy Context:\n" + "\n".join(f"- {o['id']}: {o['snippet']}" for o in org_context))
+        if feedback_examples:
+            static_parts.append("Retrieved Feedback Examples:\n" + "\n".join(f"- {ex.get('url','')}" for ex in feedback_examples))
+
+        static_tokens = sum(approx_tokens(p) for p in static_parts)
+        grant_budget_tokens = max(200, pre_cap - static_tokens)
+        grant_budget_chars = grant_budget_tokens * 4 - 100 
+        if len(grant_text) > grant_budget_chars:
+            grant_text = grant_text[:grant_budget_chars] + "…"
+
+        logger.info(
+            "Prompt size est: static=%d tokens, grant=%d tokens, total=%d tokens",
+            static_tokens, approx_tokens(grant_text), static_tokens + approx_tokens(grant_text))
+        
+        kw_line = f"Matched keywords: {', '.join(matched_keywords)}" if matched_keywords else "Matched keywords: (none)"
+        
+        examples_section = ""
+        if feedback_examples:
+            lines = []
+            for ex in feedback_examples[:3]:
+                fl = ex.get("final_labels", {})
+                lbl = ", ".join([f"{k}={fl.get(k)!r}" for k in ("is_relevant","location_applicable","award_amount","deadline") if k in fl])
+                rationale = ex.get("rationale") or ""
+                lines.append(f"- Example: {ex.get('url','')}\n  Labels: {lbl}\n  Rationale: {rationale}\n  Snippet: {ex.get('snippet','')[:300]}")
+            if lines:
+                examples_section = "Retrieved Feedback Examples:\n" + "\n".join(lines)
+        
+        org_section = ""
+        if org_context:
+            kb_lines = []
+            for row in org_context[:3]:  
+                kb_lines.append(f"- [{row.get('doc','')}] (p{row.get('priority',0)}): {row.get('snippet','')[:240]}")
+            if kb_lines:
+                org_section = "Org Policy Context:\n" + "\n".join(kb_lines)
+        
+       
+
+
+        prompt = textwrap.dedent(f"""
+                    You are analyzing a grant opportunity for two organizations. Use the following organizational contexts:
+                    This detail is important to determine if the grant is relevant for either of the organizations and to extract the funding amount.
+
+                    Mission:
+                        \"\"\"
+                        {mission.strip()}
+                        \"\"\"
+                    {kw_line}
+                    {org_section if org_section else ""}
+                    {examples_section if examples_section else ""}
 
                     Today's date: {today}
 
                     Grant Text:
-                    \"\"\"
-                    {grant_text}
-                    \"\"\"
+                        \"\"\"
+                        {grant_text}
+                        \"\"\"
 
                     Your tasks:
-                     1. Determine if the grant is relevant for the organization.
+                     1. Determine if the grant is relevant for the organization. Please pay close attention to the title of the grant that can also reveal the details or location.
+                     Also, pay close attention to the description and deadline. 
 
                     Important exclusions:
                     - If the opportunity is a residency (e.g., artist residency), set is_relevant to false and explain that it is a residency.
                     - If the opportunity is a course, class, or workshop, set is_relevant to false and explain that it is a course.
                     - If the opportunity is related to emergency assistance or relief (e.g., emergency grants), set is_relevant to false and explain that it is emergency-related.
                     - If the grant is age-restricted to under 35 (example 18–24 age group), set is_relevant to false and explain the age restriction. Age limits above 35 are acceptable.
+                    - Visual arts are not relevant unless explicitly include filmmaking/video and photography grants are never relevant.
 
                     If the grant is not relevant, do not attempt to extract award_amount, deadline, or priority_score. Just set is_relevant to false and include the reason in the explanation field.
 
@@ -116,6 +293,7 @@ class LLMClient:
                         - Specific targeting (see above list)
                         - If there is only one award and it targets unrelated demographics/geography, mark as "Poor"
                         - More awards + highly targeted grants = "Excellent"
+                        - If it is generic such as "general operating support" or "general music grants", mark as "Decent" or "Fair" based on funding amount and deadline proximity
 
                     Only respond with valid JSON like this:
                     {{
@@ -128,7 +306,8 @@ class LLMClient:
                     "possibility": "Fair"
                     }}
 
-                    Respond only with valid JSON and make sure to return all JSON values cleanly. Do not double-quote or single-quote inside string values. Do not hallucinate or fabricate information. Make sure the JSON is valid and contains all required fields.
+                    Respond only with valid JSON and make sure to return all JSON values cleanly. Do not double-quote or single-quote inside string values. Also strictly NO COMMENTS (like // or /* ... */) inside the JSON.
                     Also make sure you make very sincere attempt to extract the funding amount, deadline, and relevance of the grant based on the provided context. Leave fields null if data is unavailable. 
                     Be especially careful to avoid misinterpreting residencies or courses as grants. Photography grants are not relevant. Visual arts grants are not relevant unless they specifically mention filmmaking or video production. Film making grants are relevant and even more relevant if targeted towards artists or musicians or Asians/Southeast Asians.
-                    """.strip()
+                    """.strip())
+        return prompt

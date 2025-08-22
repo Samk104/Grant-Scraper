@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Integer, Boolean
+from sqlalchemy import Column, DateTime, String, Text, Integer, Boolean, func
 from sqlalchemy.dialects.postgresql import JSONB
 from app.db.database import Base
 
@@ -15,7 +15,12 @@ class Opportunity(Base):
     deadline = Column(String, nullable=True)
     email = Column(String, nullable=True)
     source = Column(String, nullable=False) 
-    scraped_at = Column(String, nullable=False) 
+    scraped_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+        server_default=func.now(),               
+    )
     is_relevant = Column(Boolean, nullable=True)
     is_viewed = Column(Boolean, nullable=False, default=False)
     

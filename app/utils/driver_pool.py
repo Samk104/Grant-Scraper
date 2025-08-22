@@ -10,6 +10,7 @@ from selenium.webdriver import ChromeOptions
 from selenium.webdriver.remote.webdriver import WebDriver
 from typing import Optional, Dict, List
 from selenium.webdriver.remote.remote_connection import RemoteConnection
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,8 @@ class DriverPool:
                 return
 
             try:
-                if self.is_driver_healthy(driver) and driver.session_id:
+                session_ok = bool(getattr(driver, "session_id", None))
+                if self.is_driver_healthy(driver) and session_ok:
                     self.drivers.put(driver)
                     logger.debug("Driver released back to pool")
                 else:
@@ -160,7 +162,8 @@ class DriverPool:
                             logger.debug(f"Driver already invalidated during release: {e}")
                         else:
                             logger.warning(f"Error while quitting driver during release: {e}")
-                    self.active_drivers = max(0, self.active_drivers - 1)
+                    finally:
+                        self.active_drivers = max(0, self.active_drivers - 1)
 
             except Exception as e:
                 logger.error(f"Error in release_driver: {e}")
@@ -220,29 +223,40 @@ def get_driver_pool() -> DriverPool:
         raise RuntimeError("Driver pool not initialized. Call init_driver_pool() in run.py.")
     return _driver_pool
 
-lock = threading.Lock()
-def thread_safe_append(dictionary: Dict[str, List[float]], key: str, value: float):
-    with lock:
-        if key not in dictionary:
-            dictionary[key] = []
-        dictionary[key].append(value)
 
-def load_visited_urls(path: str = "visited_urls.json") -> Dict[str, bool]:
-    if os.path.exists(path):
-        with open(path, 'r') as f:
-            return json.load(f)
-    return {}
+@contextmanager
+def borrow_driver(max_attempts: int = 3, backoff: float = 1.0):
+    pool = get_driver_pool()
+    driver = None
+    try:
+        for attempt in range(1, max_attempts + 1):
+            driver = pool.get_driver()
+            if driver is None:
+                logger.warning("borrow_driver: no driver available; retrying...")
+                time.sleep(backoff * attempt)
 
-def save_visited_urls(data: Dict[str, bool], path: str = "visited_urls.json"):
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=2)
+            if pool.is_driver_healthy(driver):
+                break
 
-def safe_write_results(path: str, results: Dict):
-    temp_path = path + ".tmp"
-    with open(temp_path, 'w') as f:
-        json.dump(results, f, indent=2)
-    os.replace(temp_path, path)
-    
+            logger.warning("borrow_driver: got an unhealthy driver; recycling and retrying...")
+            try:
+                pool.reset_driver(driver)
+            except Exception:
+                logger.exception("borrow_driver: failed to reset driver")
+            driver = None
+            time.sleep(backoff * attempt)
+
+        if driver is None:
+            logger.exception("borrow_driver: driver is none, failed to reset driver")
+            raise RuntimeError("Failed to acquire a healthy webdriver from the pool")
+
+        yield driver
+
+    finally:
+        if driver is not None:
+            pool.release_driver(driver)
+
+
 def check_driver_pool_integrity(pool: DriverPool):
     with pool.lock:
         queue_size = pool.drivers.qsize()

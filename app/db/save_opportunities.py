@@ -28,7 +28,7 @@ def save_opportunities(opportunities: list[dict], db: Session, source: str) -> i
             deadline=opp.get("deadline") or "Not Available",
             email=opp.get("email") or "Not Available",
             source=source,
-            scraped_at=datetime.now(timezone.utc).isoformat(),
+            scraped_at=datetime.now(timezone.utc),
             is_relevant=None,
             is_viewed=False
         )

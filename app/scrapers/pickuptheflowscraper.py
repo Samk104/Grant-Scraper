@@ -7,7 +7,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from app.scrapers.base_scraper import BaseScraper
-from app.utils.driver_pool import get_driver_pool
 from app.utils.text_from_image import extract_text_from_image_advanced
 from app.utils.extractors import extract_amount, extract_emails
 import spacy
@@ -18,8 +17,7 @@ nlp = spacy.load("en_core_web_sm")
 logger = logging.getLogger(__name__)
 
 class PickupTheFlowScraper(BaseScraper):
-    def scrape(self):
-        driver = get_driver_pool().get_driver()
+    def scrape(self, driver):
         if driver is None:
             logger.error("PickupTheFlow: Could not obtain a webdriver instance.")
             return []
@@ -27,138 +25,150 @@ class PickupTheFlowScraper(BaseScraper):
         all_opportunities = []
         config = self.config
 
-        try:
-            driver.get(config["url"])
-            logger.info("PickupTheFlow: Loaded initial page.")
-            curr_year = datetime.now(timezone.utc).year
+        driver.get(config["url"])
+        logger.info("PickupTheFlow: Loaded initial page.")
+        curr_year = datetime.now(timezone.utc).year
 
-            seen_links = set()
+        seen_links = set()
 
-            while True:
-                time.sleep(2)
-                self.gradual_scroll(driver)
-                articles = driver.find_elements(By.CSS_SELECTOR, config["article_selector"])
+        while True:
+            time.sleep(2)
+            self.gradual_scroll(driver)
+            articles = driver.find_elements(By.CSS_SELECTOR, config["article_selector"])
 
-                logger.info(f"PickupTheFlow: Found {len(articles)} articles")
+            logger.info(f"PickupTheFlow: Found {len(articles)} articles")
 
-                keep_going = True
-               
-                for article in articles:
-                    try:
-                        date_elem = article.find_element(By.CSS_SELECTOR, config["date_selector"])
-                        date_str = date_elem.get_attribute("datetime")
-                        article_year = parser.parse(date_str).year
+            keep_going = True
+            parent = driver.current_window_handle
+            for article in articles:
+                try:
+                    date_elem = article.find_element(By.CSS_SELECTOR, config["date_selector"])
+                    date_str = date_elem.get_attribute("datetime")
+                    article_year = parser.parse(date_str).year
 
-                        if article_year < curr_year:
-                            logger.info("PickupTheFlow: Reached articles from a previous year. Stopping.")
-                            keep_going = False
-                            break
+                    if article_year < curr_year:
+                        logger.info("PickupTheFlow: Reached articles from a previous year. Stopping.")
+                        keep_going = False
+                        break
 
-                        link_elem = article.find_element(By.CSS_SELECTOR, config["link_selector"])
-                        post_url = link_elem.get_attribute("href")
+                    link_elem = article.find_element(By.CSS_SELECTOR, config["link_selector"])
+                    post_url = link_elem.get_attribute("href")
 
-                        if post_url in seen_links:
-                            continue
-                        seen_links.add(post_url)
-
-
-                        driver.execute_script("window.open(arguments[0]);", post_url)
-                        driver.switch_to.window(driver.window_handles[-1])
-                        WebDriverWait(driver, 10).until(
-                             EC.presence_of_element_located((By.CSS_SELECTOR, config["image_selector"]))
-                            )   
-
-                        
-                        try:
-                            title = driver.find_element(By.CSS_SELECTOR, config["title_selector"]).text.strip()
-                        except:
-                             title = ""
-                        
-
-                        try:
-                            img_elem = driver.find_element(By.CSS_SELECTOR, config["image_selector"])
-                            img_url = img_elem.get_attribute("src")
-                            ocr_result = extract_text_from_image_advanced(img_url)
-                            
-                            image_text = ocr_result["full_text"]
-                            amount_hint = ocr_result["top_right_text"]
-                            location_hint = ocr_result["bottom_right_text"]
-                            deadline_hint = ocr_result["deadline_text"]
-                            
-                           
-                        except Exception as e:
-                            logger.warning(f"No image or OCR failed for '{title}': {e}")
-                            image_text = "No image text found"
-                            amount_hint = location_hint = deadline_hint = "" 
-
-                        try:
-                            deadline = self.extract_deadline(image_text, deadline_hint)
-                        except Exception as e:
-                            logger.warning(f"Failed to extract deadline for '{title}': {e}")
-                            deadline = ""
-
-                        try:
-                            location = self.extract_location(image_text, location_hint)
-                        except Exception as e:
-                            logger.warning(f"Failed to extract location for '{title}': {e}")
-                            location = "Unknown"
-                        
-                        final_url = post_url
-                        try:
-                            apply_link = self.extract_apply_link(image_text)
-                            if apply_link == "No link found":
-                                try:
-                                    parent_a = img_elem.find_element(By.XPATH, "./ancestor::a[1]")
-                                    final_url = parent_a.get_attribute("href") or post_url
-                                except Exception:
-                                    final_url = post_url
-                        except Exception as e:
-                            logger.warning(f"Failed to extract apply link for '{title}': {e}")
-                            apply_link = ""
-
-                        try:
-                            amount = extract_amount(image_text, amount_hint)
-                        except Exception as e:
-                            logger.warning(f"Failed to extract amount for '{title}': {e}")
-                            amount = ""
-                        
-                        try:
-                            emails_found = extract_emails(f"{title} {image_text}")
-                        except Exception as e:
-                            logger.warning(f"Failed to extract emails for '{title}': {e}")
-                            emails_found = []
-                        
-                        
-
-                        
-                        if deadline is None or deadline >= datetime.now(timezone.utc).date():
-                            all_opportunities.append({
-                                "title": title,
-                                "url": final_url,
-                                "description": image_text,
-                                "grant_amount": ", ".join(amount) if amount else "",
-                                "tags": f"{amount if amount else ''}, {location if location else ''}",
-                                "deadline": deadline.strftime("%Y-%m-%d") if deadline else "",
-                                 "email": ", ".join(emails_found) if emails_found else "",
-                            })
-
-                        driver.close()
-                        driver.switch_to.window(driver.window_handles[0])
-
-                    except Exception as e:
-                        logger.warning(f"PickupTheFlow: Failed to process an article: {e}")
-                        driver.switch_to.window(driver.window_handles[0])
+                    if post_url in seen_links:
                         continue
+                    seen_links.add(post_url)
 
-                if not keep_going:
-                    break
 
-        finally:
-            if driver:
-                get_driver_pool().release_driver(driver)
-                logging.info("PickupTheFlow: Scraper finished and driver released.")
+                    driver.execute_script("window.open(arguments[0]);", post_url)
+                    driver.switch_to.window(driver.window_handles[-1])
+                    WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, config["image_selector"]))
+                        )   
 
-        logger.info(f"PickupTheFlow: Scraped {len(all_opportunities)} valid opportunities.")
+                    
+                    try:
+                        title = driver.find_element(By.CSS_SELECTOR, config["title_selector"]).text.strip()
+                    except Exception:
+                            title = ""
+                    
+                    img_elem = None 
+                    try:
+                        img_elem = driver.find_element(By.CSS_SELECTOR, config["image_selector"])
+                        img_url = img_elem.get_attribute("src")
+                        ocr_result = extract_text_from_image_advanced(img_url)
+                        
+                        image_text   = ocr_result.get("full_text", "") or "No image text found"
+                        amount_hint  = ocr_result.get("top_right_text", "") or ""
+                        location_hint= ocr_result.get("bottom_right_text", "") or ""
+                        deadline_hint= ocr_result.get("deadline_text", "") or ""
+                        
+                        
+                    except Exception as e:
+                        logger.warning(f"No image or OCR failed for '{title}': {e}")
+                        image_text = "No image text found"
+                        amount_hint = location_hint = deadline_hint = "" 
+
+                    try:
+                        deadline = self.extract_deadline(image_text, deadline_hint)
+                    except Exception as e:
+                        logger.warning(f"Failed to extract deadline for '{title}': {e}")
+                        deadline = None
+
+                    try:
+                        location = self.extract_location(image_text, location_hint)
+                    except Exception as e:
+                        logger.warning(f"Failed to extract location for '{title}': {e}")
+                        location = "Unknown"
+                    
+                    final_url = post_url
+                    try:
+                        apply_link = self.extract_apply_link(image_text)
+                        if apply_link and apply_link != "No link found":
+                            final_url = apply_link
+                        elif img_elem is not None:
+                            try:
+                                parent_a = img_elem.find_element(By.XPATH, "./ancestor::a[1]")
+                                final_url = parent_a.get_attribute("href") or post_url
+                            except Exception:
+                                final_url = post_url
+                    except Exception as e:
+                        logger.warning(f"Failed to extract apply link for '{title}': {e}")
+
+                    try:
+                        amount = extract_amount(image_text, amount_hint)
+                        if isinstance(amount, str):
+                            amount_list = [amount] if amount else []
+                        else:
+                            amount_list = list(amount or [])
+                    except Exception as e:
+                        logger.warning(f"Failed to extract amount for '{title}': {e}")
+                        amount_list = []
+                    
+                    try:
+                        emails_found = extract_emails(f"{title} {image_text}")
+                    except Exception as e:
+                        logger.warning(f"Failed to extract emails for '{title}': {e}")
+                        emails_found = []
+                    
+                    
+
+                    skipped_past = 0
+                    if deadline is not None and deadline < datetime.now(timezone.utc).date():
+                        skipped_past += 1
+                        continue
+                    
+                    if deadline is None or deadline >= datetime.now(timezone.utc).date():
+                        amount_str = ", ".join(amount_list) if amount_list else ""
+                        tag_bits = [bit for bit in [amount_str, location if location and location != "Unknown" else ""] if bit]
+                        all_opportunities.append({
+                            "title": title,
+                            "url": final_url,
+                            "description": image_text,
+                            "grant_amount": amount_str,
+                            "tags":  ", ".join(tag_bits),
+                            "deadline": deadline.strftime("%Y-%m-%d") if deadline else "",
+                                "email": ", ".join(emails_found) if emails_found else "",
+                        })
+
+                except Exception as e:
+                    logger.warning(f"PickupTheFlow: Failed to process an article: {e}")
+                    continue
+                
+                finally:
+                    try:
+                        if driver.current_window_handle != parent:
+                            driver.close()
+                    except Exception:
+                        pass
+                    try:
+                        driver.switch_to.window(parent)
+                    except Exception:
+                        pass
+
+            if not keep_going:
+                break
+
+        logger.info(f"PickupTheFlow: Scraped {len(all_opportunities)} valid opportunities.(Skipped {skipped_past} past-deadline)")
         return all_opportunities
 
     def gradual_scroll(self, driver, steps=5, pause=1.0):
