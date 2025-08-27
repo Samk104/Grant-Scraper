@@ -256,3 +256,28 @@ def submit_feedback(
         user_is_relevant=payload.user_is_relevant,
     )
     return _to_detail(updated)
+
+
+@router.get("/counts/unviewed")
+def count_unviewed(
+    db: Session = Depends(get_db),
+    role: Role = Depends(get_role),
+):
+    total = db.scalar(select(func.count()).select_from(Opportunity)) or 0
+    unviewed = db.scalar(
+        select(func.count()).where(Opportunity.is_viewed.is_(False))
+    ) or 0
+    return {"unviewed": unviewed, "total": total}
+
+
+@router.get("/counts/feedback")
+def count_with_feedback(
+    db: Session = Depends(get_db),
+    role: Role = Depends(get_role),
+):
+    total = db.scalar(select(func.count()).select_from(Opportunity)) or 0
+    with_feedback = db.scalar(
+        select(func.count()).where(Opportunity.user_feedback.is_(True))
+    ) or 0
+    return {"with_feedback": with_feedback, "total": total}
+

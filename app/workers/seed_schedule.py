@@ -20,9 +20,6 @@ def main():
 
     
     existing = [j for j in sched.get_jobs() if j.id == JOB_ID]
-    for j in existing:
-        sched.cancel(j)
-
     
     sched.cron(
         CRON,
@@ -37,7 +34,15 @@ def main():
         result_ttl=86400,       
         description="Weekly pipeline job",
     )
+    
+    for j in existing:
+        try:
+            if getattr(j, "id", None) == JOB_ID:
+                sched.cancel(j)
+        except Exception:
+            pass
 
+    print(f"Ensured schedule {JOB_ID} -> {FUNC_PATH} as cron '{CRON}' (UTC)")
     print(f"Seeded RQ scheduler job {JOB_ID} -> {FUNC_PATH} as cron '{CRON}' (UTC)")
 
 if __name__ == "__main__":
