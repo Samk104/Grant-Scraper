@@ -1,6 +1,6 @@
 import os
 from enum import Enum
-from typing import Generator
+from typing import Generator, Optional
 from fastapi import Header, HTTPException, status
 from app.db.database import SessionLocal
 
@@ -20,11 +20,13 @@ def get_db() -> Generator:
     finally:
         db.close()
 
-def get_role(x_access_code: str = Header(..., alias="X-Access-Code")) -> Role:
-    """
-    Resolve role from access code sent in X-Access-Code.
-    Raises HTTPException if the access code is invalid.
-    """
+def get_role(x_access_code: Optional[str] = Header(None, alias="X-Access-Code")) -> Role:
+    if x_access_code is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing access code",
+            headers={"WWW-Authenticate": "Bearer"},  # optional but recommended for 401
+        )
     if x_access_code == ADMIN_CODE:
         return Role.admin
     if x_access_code == USER_CODE:
