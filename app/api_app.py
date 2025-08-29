@@ -1,4 +1,3 @@
-# app/api_app.py
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +11,10 @@ from sqlalchemy import inspect
 
 app = FastAPI(title="Grant Scraper API", version="1.0.0")
 
-origins = ["http://localhost:4200"]
+origins = [
+    "http://localhost:4200",
+    "http://127.0.0.1:4200",
+]
 fo = os.getenv("FRONTEND_ORIGIN", "").strip()
 if fo:
     origins.append(fo)
@@ -23,6 +25,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 @app.on_event("startup")

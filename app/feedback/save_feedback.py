@@ -2,6 +2,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from app.db.models import Opportunity
 import logging
 
@@ -63,11 +64,14 @@ def save_feedback(
     corrections: Optional[Dict[str, Any]] = None,
     user_is_relevant: Optional[bool] = None,
 ) -> Opportunity:
-    o: Opportunity | None = (
-        db.query(Opportunity)
-          .filter(Opportunity.unique_key == opportunity_unique_key)
-          .first()
-    )
+    
+    o :Opportunity | None = (db.execute(
+        select(Opportunity)
+        .where(Opportunity.unique_key == opportunity_unique_key)
+        .with_for_update()
+    ).scalar_one_or_none())
+
+
     if not o:
         raise ValueError(f"Opportunity with unique key {opportunity_unique_key} not found")
 
@@ -103,7 +107,7 @@ def save_feedback(
         pass
 
 
-    with db.begin():
+    try:
         o.user_feedback = True
         o.user_feedback_info = info
 
@@ -117,10 +121,12 @@ def save_feedback(
         if explicit_relevance is not None:
             o.is_relevant = explicit_relevance
 
-        db.flush()
-        db.refresh(o)
-
-    return o
+        db.commit()      
+        db.refresh(o)    
+        return o
+    except Exception:
+        db.rollback()
+        raise
     
     
 
