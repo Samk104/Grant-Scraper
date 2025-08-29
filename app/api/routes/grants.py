@@ -180,7 +180,8 @@ def _simulate_feedback_changes(o: Opportunity, payload: FeedbackPayload) -> Dict
     changes["user_feedback"] = True
 
     info = dict(o.user_feedback_info or {})
-    info["rationale"] = payload.rationale
+    if payload.rationale is not None:
+        info["rationale"] = payload.rationale
     if payload.corrections:
         prev = dict(info.get("corrections") or {})
         prev.update(payload.corrections)
@@ -192,7 +193,7 @@ def _simulate_feedback_changes(o: Opportunity, payload: FeedbackPayload) -> Dict
     except Exception:
         llm_rel = None
 
-    explicit_relevance = None
+    explicit_relevance: Optional[bool] = None
     if payload.user_is_relevant is not None:
         explicit_relevance = bool(payload.user_is_relevant)
         info["user_is_relevant"] = explicit_relevance

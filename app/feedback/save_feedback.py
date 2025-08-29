@@ -59,7 +59,7 @@ def _normalize_for_columns(key: str, val: Any) -> Any:
 def save_feedback(
     db: Session,
     opportunity_unique_key: str,
-    rationale: str,
+    rationale: Optional[str] = None,
     corrections: Optional[Dict[str, Any]] = None,
     user_is_relevant: Optional[bool] = None,
 ) -> Opportunity:
@@ -73,7 +73,8 @@ def save_feedback(
 
     corr = _validate_corrections(corrections)
     info = dict(o.user_feedback_info or {})
-    info["rationale"] = rationale
+    if rationale is not None:
+        info["rationale"] = rationale
     if corr:
         prev = dict(info.get("corrections") or {})
         prev.update(corr)

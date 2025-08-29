@@ -23,9 +23,10 @@ class GrantDetail(BaseModel):
     llm_info: Optional[Dict[str, Any]] = None
 
 class FeedbackPayload(BaseModel):
-    rationale: str
+    user_is_relevant: bool
+    rationale: Optional[str] = None
     corrections: Optional[Dict[str, Any]] = None
-    user_is_relevant: Optional[bool] = None
+
 
 class FeedbackDryRun(BaseModel):
     dry_run: bool = True
