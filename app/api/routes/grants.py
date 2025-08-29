@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import BigInteger, case, cast, or_, select, func 
+from sqlalchemy import BigInteger, case, cast, or_, select, func , Text, Numeric
 from app.api.deps import get_db, get_role, Role
 from app.api.schemas import GrantDetail, ListResponse, FeedbackPayload, FeedbackDryRun
 from app.db.models import Opportunity
@@ -83,7 +83,7 @@ def list_grants(
         multi_numbers_regex = r'(\d[\d,\.]*)\D+(\d[\d,\.]*)' 
 
         gm = Opportunity.grant_amount
-        aw = Opportunity.llm_info['award_amount'].astext
+        aw = cast(Opportunity.llm_info['award_amount'], Text)
 
     
         gm_multi = gm.op('~*')(multi_numbers_regex)
@@ -105,30 +105,32 @@ def list_grants(
             aw_multi,
         )
 
+        gm_has_k = func.strpos(func.lower(gm), 'k') > 0
+        aw_has_k = func.strpos(func.lower(aw), 'k') > 0
+        
         gm_digits = func.regexp_replace(func.lower(gm), '[^0-9]', '', 'g')
         aw_digits = func.regexp_replace(func.lower(aw), '[^0-9]', '', 'g')
-        gm_has_k = func.position('k', func.lower(gm)) > 0
-        aw_has_k = func.position('k', func.lower(aw)) > 0
 
 
         gm_value = case(
-            (gm_multi, None),
             (gm.op('~*')(range_regex), None),
+            (gm.op('~*')(multi_numbers_regex), None),
             (func.length(gm_digits) > 0,
                 case(
-                    (gm_has_k, cast(gm_digits, BigInteger) * 1000),
-                    else_=cast(gm_digits, BigInteger),
+                    (gm_has_k, cast(gm_digits, Numeric) * 1000),
+                    else_=cast(gm_digits, Numeric),
                 )
             ),
             else_=None,
         )
+
         aw_value = case(
-            (aw_multi, None),
             (aw.op('~*')(range_regex), None),
+            (aw.op('~*')(multi_numbers_regex), None),
             (func.length(aw_digits) > 0,
                 case(
-                    (aw_has_k, cast(aw_digits, BigInteger) * 1000),
-                    else_=cast(aw_digits, BigInteger),
+                    (aw_has_k, cast(aw_digits, Numeric) * 1000),
+                    else_=cast(aw_digits, Numeric),
                 )
             ),
             else_=None,
@@ -157,7 +159,7 @@ def list_grants(
 @router.get("/{unique_key}", response_model=GrantDetail)
 def get_grant(
     unique_key: str,
-    mark_viewed: bool = True,
+    mark_viewed: bool = False,
     db: Session = Depends(get_db),
     role: Role = Depends(get_role),
 ):
