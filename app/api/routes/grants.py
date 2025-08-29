@@ -74,7 +74,12 @@ def list_grants(
         stmt = stmt.where((Opportunity.user_feedback.is_(False)) | (Opportunity.user_feedback.is_(None)))
 
     if source:
-        stmt = stmt.where(Opportunity.source == source)
+        like = f"%{source.strip()}%"
+        stmt = stmt.where(or_(
+            Opportunity.source.ilike(like),
+            Opportunity.url.ilike(like),
+        ))
+
     
     
     # Filter by minimum amount if specified - based on concrete numeric values, does not apply to ranges, multiple numbers or unknowns.
