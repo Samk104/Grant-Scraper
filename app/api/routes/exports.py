@@ -33,7 +33,7 @@ def export_grants_csv(
         )
     elif type == ExportType.llm_not_relevant:
         stmt = stmt.where(Opportunity.llm_info['is_relevant'].astext == 'false')
-    elif type == ExportType.approved_and_no_email:
+    elif type == ExportType.approved_no_email_or_no_url:
         stmt = stmt.where(
             Opportunity.user_feedback.is_(True),
             Opportunity.user_feedback_info['user_is_relevant'].astext == 'true',
