@@ -246,11 +246,11 @@ class LLMClient:
                         \"\"\"
 
                     Your tasks:
-                     1. Determine if the grant is relevant for the organization. Please pay close attention to the title of the grant that can also reveal the details or location.
+                     1. Determine if the grant is relevant for any of the two organizations. Please pay close attention to the title of the grant that can also reveal the details or location.
                      Also, pay close attention to the description and deadline. 
 
                     Important exclusions:
-                    - If the opportunity is a residency (e.g., artist residency), set is_relevant to false and explain that it is a residency.
+                    - If the opportunity is a residency (e.g., artist residency), set is_relevant to false and explain that it is a residency and strictly do not mark it relevant.
                     - If the opportunity is a course, class, or workshop, set is_relevant to false and explain that it is a course.
                     - If the opportunity is related to emergency assistance or relief (e.g., emergency grants), set is_relevant to false and explain that it is emergency-related.
                     - If the grant is age-restricted to under 35 (example 18–24 age group), set is_relevant to false and explain the age restriction. Age limits above 35 are acceptable.
