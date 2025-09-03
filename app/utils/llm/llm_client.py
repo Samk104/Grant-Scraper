@@ -221,7 +221,7 @@ class LLMClient:
             for row in org_context[:3]:  
                 kb_lines.append(f"- [{row.get('doc','')}] (p{row.get('priority',0)}): {row.get('snippet','')[:240]}")
             if kb_lines:
-                org_section = "Org Policy Context:\n" + "\n".join(kb_lines)
+                org_section = "Org Policy Contex for both SAFAC and Riyaaz Qawwali:\n" + "\n".join(kb_lines)
         
        
 
@@ -229,7 +229,7 @@ class LLMClient:
         prompt = textwrap.dedent(f"""
                     You are analyzing a grant opportunity for two organizations. The following detail is important to determine if the grant is relevant for either of the organizations and to extract the funding amount.
                     Use the following organizational contexts for SAFAC and Riyaaz Qawwali to inform your decision:
-                    Mission:
+                    Mission for SAFAC and Riyaaz Qawwali:
                         \"\"\"
                         {mission.strip()}
                         \"\"\"
