@@ -227,9 +227,8 @@ class LLMClient:
 
 
         prompt = textwrap.dedent(f"""
-                    You are analyzing a grant opportunity for two organizations. Use the following organizational contexts:
-                    This detail is important to determine if the grant is relevant for either of the organizations and to extract the funding amount.
-
+                    You are analyzing a grant opportunity for two organizations. The following detail is important to determine if the grant is relevant for either of the organizations and to extract the funding amount.
+                    Use the following organizational contexts for SAFAC and Riyaaz Qawwali to inform your decision:
                     Mission:
                         \"\"\"
                         {mission.strip()}
@@ -246,7 +245,7 @@ class LLMClient:
                         \"\"\"
 
                     Your tasks:
-                     1. Determine if the grant is relevant for any of the two organizations. Please pay close attention to the title of the grant that can also reveal the details or location.
+                     1. Determine if the grant is relevant for any of the two organizations (SAFAC or Riyaaz Qawwali or both). Please pay close attention to the title of the grant that can also reveal the details or location.
                      Also, pay close attention to the description and deadline. 
 
                     Important exclusions:
@@ -283,6 +282,7 @@ class LLMClient:
                         - Relevance based on:
                             - General relevance (adds points)
                             - If it targets music or visual arts with filmmaking: +points
+                            - If it targets civic engagement or community building: +points
                             - If it targets Texas: +points
                             - If it targets Houston: +more points
                             - If it in any way targets South-East Asian or Indian artists/art forms or music: +more points
@@ -301,13 +301,14 @@ class LLMClient:
                     "location_applicable": true,
                     "award_amount": "$5000",
                     "deadline": "2025-09-15",
-                    "explanation": "The grant is not relevant as it focuses on Photography, which does not align with Riyaaz Qawwali's mission. ",
+                    "explanation": "The grant is not relevant as it focuses on Photography, which does not align with Riyaaz Qawwali's or SAFAC's mission. ",
                     "priority_score": 87,
                     "possibility": "Fair"
                     }}
 
                     Respond only with valid JSON and make sure to return all JSON values cleanly. Do not double-quote or single-quote inside string values. Also strictly NO COMMENTS (like // or /* ... */) inside the JSON.
                     Also make sure you make very sincere attempt to extract the funding amount, deadline, and relevance of the grant based on the provided context. Leave fields null if data is unavailable. 
-                    Be especially careful to avoid misinterpreting residencies or courses as grants. Photography grants are not relevant. Visual arts grants are not relevant unless they specifically mention filmmaking or video production. Film making grants are relevant and even more relevant if targeted towards artists or musicians or Asians/Southeast Asians.
+                    Be especially careful to strictly avoid misinterpreting residencies or courses as grants. Photography grants are not relevant. Visual arts grants are not relevant unless they specifically mention filmmaking or video production. Film making grants are relevant and even more relevant if targeted towards artists or musicians or Asians/Southeast Asians.
+                    Civic engagement and community-building grants are relevant.
                     """.strip())
         return prompt
