@@ -38,12 +38,12 @@ def _compose_final_labels(opp: Opportunity, corrections: Dict[str, Any] | None) 
     else:
         final_deadline = llm_info.get("deadline")
 
-    final_explanation = llm_info.get("explanation")  # optional; included if present
+    final_explanation = llm_info.get("explanation")
 
     return {
         "is_relevant": final_is_relevant,
         "location_applicable": final_location_applicable,
-        "grant_amout": final_grant_amount,   # NOTE: label key intentionally spelled per request
+        "grant_amout": final_grant_amount,
         "deadline": final_deadline,
         "explanation": final_explanation,
     }
