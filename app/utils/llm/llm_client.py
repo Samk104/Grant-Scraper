@@ -268,7 +268,7 @@ class LLMClient:
                         As written out words describing an amount (e.g., "five hundred dollars", "ten thousand USD")
 
                     3. Evaluate and return a JSON with the following fields:
-                    - is_relevant: true or false
+                    - is_relevant: true or false only strictly cannot be none or anything else
                     - location_applicable: true or false
                     - award_amount: string or null
                     - deadline: string or null
